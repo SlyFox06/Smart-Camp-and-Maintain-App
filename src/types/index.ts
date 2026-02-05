@@ -9,6 +9,7 @@ export interface User {
     role: UserRole;
     department?: string;
     avatar?: string;
+    requiresPasswordChange?: boolean;
 }
 
 // Asset Types

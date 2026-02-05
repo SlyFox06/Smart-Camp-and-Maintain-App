@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { X, MapPin, Calendar, User, Wrench, Clock, CheckCircle, Image as ImageIcon, AlertCircle } from 'lucide-react';
+import { X, MapPin, Calendar, User, Wrench, Clock, CheckCircle, Image as ImageIcon, AlertCircle, Edit, Save } from 'lucide-react';
 import type { Complaint } from '../types';
+import api from '../services/api';
 import { formatDate, getTimeDifference, getStatusBadgeStyle, getSeverityBadgeStyle, formatResolutionTime, calculateResolutionTime } from '../utils/helpers';
 import { currentUser } from '../data/mockData';
 
@@ -13,6 +14,26 @@ const ComplaintDetails = ({ complaint, onClose }: ComplaintDetailsProps) => {
     const [otpInput, setOtpInput] = useState('');
     const [otpError, setOtpError] = useState('');
     const [isVerifying, setIsVerifying] = useState(false);
+
+    // Priority Editing
+    const [isEditingPriority, setIsEditingPriority] = useState(false);
+    const [newSeverity, setNewSeverity] = useState(complaint.severity);
+    const isAdmin = currentUser.role === 'admin';
+
+    const handleUpdatePriority = async () => {
+        try {
+            await api.patch(`/complaints/${complaint.id}/status`, {
+                status: complaint.status, // Keep status same
+                severity: newSeverity
+            });
+            alert('Priority updated successfully!');
+            setIsEditingPriority(false);
+            // Ideally trigger a refresh here, but for now we rely on the parent or close/reopen
+            onClose(); // Close to refresh list in parent (not ideal but simple)
+        } catch (error) {
+            alert('Failed to update priority');
+        }
+    };
 
     const isStudent = currentUser.role === 'student';
     const canVerifyOTP = isStudent && complaint.status === 'resolved' && !complaint.otpVerified && complaint.otp;
@@ -62,9 +83,49 @@ const ComplaintDetails = ({ complaint, onClose }: ComplaintDetailsProps) => {
                         <span className={`status-badge ${getStatusBadgeStyle(complaint.status)} border`}>
                             {complaint.status.replace('_', ' ').toUpperCase()}
                         </span>
-                        <span className={`status-badge ${getSeverityBadgeStyle(complaint.severity)} border`}>
-                            {complaint.severity.toUpperCase()} PRIORITY
-                        </span>
+                        <div className="flex items-center gap-2">
+                            {isEditingPriority ? (
+                                <div className="flex items-center gap-2 bg-white rounded-lg border border-gray-200 p-1 shadow-sm">
+                                    <select
+                                        value={newSeverity}
+                                        onChange={(e) => setNewSeverity(e.target.value as any)}
+                                        className="text-sm border-none focus:ring-0 rounded bg-transparent py-1 pl-2 pr-8 cursor-pointer"
+                                    >
+                                        <option value="low">Low</option>
+                                        <option value="medium">Medium</option>
+                                        <option value="high">High</option>
+                                        <option value="critical">Critical</option>
+                                    </select>
+                                    <button
+                                        onClick={handleUpdatePriority}
+                                        className="p-1 hover:bg-green-100 rounded text-green-600"
+                                        title="Save"
+                                    >
+                                        <Save className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                        onClick={() => setIsEditingPriority(false)}
+                                        className="p-1 hover:bg-red-100 rounded text-red-600"
+                                        title="Cancel"
+                                    >
+                                        <X className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            ) : (
+                                <span className={`status-badge ${getSeverityBadgeStyle(complaint.severity)} border flex items-center gap-2 pr-2`}>
+                                    {complaint.severity.toUpperCase()} PRIORITY
+                                    {isAdmin && (
+                                        <button
+                                            onClick={() => setIsEditingPriority(true)}
+                                            className="hover:bg-black/10 rounded-full p-1 transition-colors"
+                                            title="Edit Priority"
+                                        >
+                                            <Edit className="w-3 h-3" />
+                                        </button>
+                                    )}
+                                </span>
+                            )}
+                        </div>
                         {complaint.otpVerified && (
                             <span className="status-badge bg-green-100 text-green-800 border border-green-200">
                                 ✓ VERIFIED

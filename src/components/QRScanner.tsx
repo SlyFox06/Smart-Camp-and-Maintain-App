@@ -1,146 +1,207 @@
-import { useState } from 'react';
-import { X, QrCode, Camera } from 'lucide-react';
-import { mockAssets } from '../data/mockData';
-import ComplaintForm from './ComplaintForm';
+import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { X, QrCode, AlertCircle } from 'lucide-react';
+import QrScanner from 'qr-scanner';
 
 interface QRScannerProps {
     onClose: () => void;
 }
 
 const QRScanner = ({ onClose }: QRScannerProps) => {
-    const [scannedAssetId, setScannedAssetId] = useState<string | null>(null);
-    const [showComplaintForm, setShowComplaintForm] = useState(false);
+    const navigate = useNavigate();
+    const videoRef = useRef<HTMLVideoElement>(null);
+    const [scanError, setScanError] = useState<string | null>(null);
+    const [hasPermission, setHasPermission] = useState<boolean | null>(null);
+    const scannerRef = useRef<QrScanner | null>(null);
 
-    // Simulate QR code scanning
-    const simulateScan = () => {
-        // Randomly select an asset for demo
-        const randomAsset = mockAssets[Math.floor(Math.random() * mockAssets.length)];
-        setScannedAssetId(randomAsset.id);
+    useEffect(() => {
+        const initializeScanner = async () => {
+            // 1. Check for Secure Context (Required for Camera on Mobile)
+            if (!window.isSecureContext && window.location.hostname !== 'localhost') {
+                setScanError('Camera access requires a Secure Context (HTTPS). On mobile, standard HTTP only works for localhost.');
+                return;
+            }
+
+            // 2. Check for Camera Hardware
+            const hasCamera = await QrScanner.hasCamera();
+            if (!hasCamera) {
+                setScanError('No camera found on this device.');
+                return;
+            }
+
+            // 3. Start Scanner
+            if (videoRef.current) {
+                scannerRef.current = new QrScanner(
+                    videoRef.current,
+                    (result) => handleScan(result),
+                    {
+                        returnDetailedScanResult: true,
+                        highlightScanRegion: true,
+                        highlightCodeOutline: true,
+                        maxScansPerSecond: 5,
+                    }
+                );
+
+                try {
+                    await scannerRef.current.start();
+                    setHasPermission(true);
+                    setScanError(null);
+                } catch (err) {
+                    console.error('Failed to start scanner:', err);
+                    setHasPermission(false);
+                    setScanError('Camera permission denied or unavailable. Please allow camera access in your browser settings.');
+                }
+            }
+        };
+
+        initializeScanner();
+
+        return () => {
+            if (scannerRef.current) {
+                scannerRef.current.stop();
+                scannerRef.current.destroy();
+            }
+        };
+    }, []);
+
+    const handleScan = (result: QrScanner.ScanResult) => {
+        const data = result.data;
+        if (!data) return;
+
+        let assetId = '';
+
+        try {
+            const json = JSON.parse(data);
+            // Handle simple { assetId: "..." } or { id: "..." }
+            assetId = json.assetId || json.id || '';
+        } catch (e) {
+            // String parsing
+            if (data.includes('/report/')) {
+                assetId = data.split('/report/')[1].split('?')[0];
+            } else if (data.includes('assetId=')) {
+                assetId = data.split('assetId=')[1].split('&')[0];
+            } else {
+                // Determine if it's a UUID or simple ID (alphanumeric check)
+                if (data.length > 2 && !data.includes(' ')) {
+                    assetId = data;
+                }
+            }
+        }
+
+        if (assetId) {
+            scannerRef.current?.stop();
+            navigate(`/report/${assetId}`);
+            onClose();
+        }
     };
 
-    const scannedAsset = scannedAssetId ? mockAssets.find(a => a.id === scannedAssetId) : null;
-
-    if (showComplaintForm && scannedAssetId) {
-        return <ComplaintForm onClose={onClose} prefilledAssetId={scannedAssetId} />;
-    }
+    const handleRetry = () => {
+        setScanError(null);
+        setHasPermission(null);
+        if (scannerRef.current) {
+            scannerRef.current.start()
+                .then(() => {
+                    setHasPermission(true);
+                    setScanError(null);
+                })
+                .catch((err: any) => {
+                    setScanError('Retry failed: ' + (err.message || 'Unknown error'));
+                });
+        } else {
+            // If scanner not initialized (e.g. secure context error), try full re-init or reload
+            window.location.reload();
+        }
+    };
 
     return (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="glass-card-light max-w-2xl w-full">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4">
+            <div className="bg-white/10 backdrop-blur-lg border border-white/20 max-w-lg w-full relative overflow-hidden rounded-3xl shadow-2xl">
                 {/* Header */}
-                <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-                    <h2 className="text-2xl font-bold text-gray-900">Scan QR Code</h2>
+                <div className="p-5 flex items-center justify-between z-10 relative bg-black/20">
+                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                        <QrCode className="w-6 h-6 text-blue-400" />
+                        Scan QR Code
+                    </h2>
                     <button
                         onClick={onClose}
-                        className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                        className="p-2 hover:bg-white/10 rounded-full transition-colors text-white/80 hover:text-white"
                     >
-                        <X className="w-6 h-6 text-gray-600" />
+                        <X className="w-6 h-6" />
                     </button>
                 </div>
 
-                <div className="p-6">
-                    {!scannedAsset ? (
-                        <div className="text-center">
-                            {/* QR Scanner Placeholder */}
-                            <div className="relative w-full aspect-square max-w-md mx-auto mb-6 bg-gray-900 rounded-2xl overflow-hidden">
-                                <div className="absolute inset-0 flex items-center justify-center">
-                                    <div className="w-64 h-64 border-4 border-white/30 rounded-2xl relative">
-                                        <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-blue-500"></div>
-                                        <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-blue-500"></div>
-                                        <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-blue-500"></div>
-                                        <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-blue-500"></div>
+                <div className="relative aspect-[3/4] md:aspect-square bg-black group">
+                    <video
+                        ref={videoRef}
+                        className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"
+                        playsInline
+                        muted
+                    />
 
-                                        <div className="absolute inset-0 flex items-center justify-center">
-                                            <QrCode className="w-24 h-24 text-white/50" />
-                                        </div>
-                                    </div>
-                                </div>
+                    {/* Scanning Overlay */}
+                    {!scanError && hasPermission && (
+                        <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                            <div className="w-64 h-64 border-2 border-blue-500/50 rounded-3xl relative overflow-hidden">
+                                <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-blue-500 rounded-tl-lg"></div>
+                                <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-blue-500 rounded-tr-lg"></div>
+                                <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-blue-500 rounded-bl-lg"></div>
+                                <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-blue-500 rounded-br-lg"></div>
 
-                                {/* Scanning Line Animation */}
-                                <div className="absolute inset-0 flex items-center justify-center">
-                                    <div className="w-64 h-1 bg-blue-500 animate-pulse"></div>
-                                </div>
+                                <div className="absolute inset-x-0 h-0.5 bg-blue-500/80 shadow-[0_0_15px_rgba(59,130,246,0.6)] animate-[scan_2s_ease-in-out_infinite]"></div>
                             </div>
 
-                            <p className="text-gray-600 mb-6">
-                                Position the QR code within the frame to scan
-                            </p>
-
-                            {/* Demo Button */}
-                            <button
-                                onClick={simulateScan}
-                                className="btn-primary flex items-center gap-2 mx-auto"
-                            >
-                                <Camera className="w-5 h-5" />
-                                Simulate QR Scan (Demo)
-                            </button>
-
-                            <p className="text-sm text-gray-500 mt-4">
-                                In production, this would use your device camera
+                            <p className="absolute bottom-12 text-white/90 text-sm font-medium bg-black/40 px-4 py-2 rounded-full backdrop-blur-sm">
+                                Align QR code within frame
                             </p>
                         </div>
-                    ) : (
-                        <div className="text-center">
-                            {/* Success Animation */}
-                            <div className="w-24 h-24 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-6 animate-pulse">
-                                <QrCode className="w-12 h-12 text-white" />
+                    )}
+
+                    {/* Error State */}
+                    {scanError && (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 text-white p-8 text-center">
+                            <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mb-4">
+                                <AlertCircle className="w-8 h-8 text-red-500" />
                             </div>
+                            <h3 className="text-xl font-bold mb-2">Camera Error</h3>
+                            <p className="text-gray-300 mb-6">{scanError}</p>
 
-                            <h3 className="text-2xl font-bold text-gray-900 mb-2">QR Code Scanned!</h3>
-                            <p className="text-gray-600 mb-6">Asset details retrieved successfully</p>
-
-                            {/* Asset Details */}
-                            <div className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-xl p-6 mb-6 text-left">
-                                <div className="space-y-3">
-                                    <div>
-                                        <p className="text-sm text-gray-600">Asset Name</p>
-                                        <p className="text-lg font-semibold text-gray-900">{scannedAsset.name}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-sm text-gray-600">Location</p>
-                                        <p className="text-lg font-semibold text-gray-900">{scannedAsset.location}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-sm text-gray-600">Type</p>
-                                        <p className="text-lg font-semibold text-gray-900">
-                                            {scannedAsset.type.replace('_', ' ').toUpperCase()}
-                                        </p>
-                                    </div>
-                                    <div>
-                                        <p className="text-sm text-gray-600">Department</p>
-                                        <p className="text-lg font-semibold text-gray-900">{scannedAsset.department}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-sm text-gray-600">Status</p>
-                                        <span className={`inline-block px-3 py-1 rounded-full text-sm font-semibold ${scannedAsset.status === 'operational' ? 'bg-green-100 text-green-800' :
-                                                scannedAsset.status === 'under_maintenance' ? 'bg-yellow-100 text-yellow-800' :
-                                                    'bg-red-100 text-red-800'
-                                            }`}>
-                                            {scannedAsset.status.replace('_', ' ').toUpperCase()}
-                                        </span>
-                                    </div>
+                            {!window.isSecureContext && (
+                                <div className="text-xs text-yellow-300 bg-yellow-900/30 p-3 rounded-lg mb-4 border border-yellow-500/30">
+                                    💡 <strong>Tip for Mobile Testing:</strong><br />
+                                    If testing on IP (192.168...), try Chrome flags:<br />
+                                    <code>chrome://flags/#unsafely-treat-insecure-origin-as-secure</code>
                                 </div>
-                            </div>
+                            )}
 
-                            {/* Actions */}
-                            <div className="flex gap-4">
-                                <button
-                                    onClick={() => setScannedAssetId(null)}
-                                    className="flex-1 px-6 py-3 bg-gray-200 text-gray-700 font-semibold rounded-xl hover:bg-gray-300 transition-colors"
-                                >
-                                    Scan Again
-                                </button>
-                                <button
-                                    onClick={() => setShowComplaintForm(true)}
-                                    className="flex-1 btn-primary"
-                                >
-                                    Report Issue
-                                </button>
+                            <button
+                                onClick={handleRetry}
+                                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition-colors"
+                            >
+                                Retry Camera
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Permission Pending State */}
+                    {!hasPermission && !scanError && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/90">
+                            <div className="text-white text-center">
+                                <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                                <p>Requesting camera permission...</p>
                             </div>
                         </div>
                     )}
                 </div>
             </div>
+
+            <style>{`
+                @keyframes scan {
+                    0% { top: 0%; opacity: 0; }
+                    10% { opacity: 1; }
+                    90% { opacity: 1; }
+                    100% { top: 100%; opacity: 0; }
+                }
+            `}</style>
         </div>
     );
 };

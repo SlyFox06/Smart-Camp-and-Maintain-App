@@ -48,8 +48,8 @@ export const getSeverityColor = (severity: ComplaintSeverity): string => {
     const colors: Record<ComplaintSeverity, string> = {
         low: 'bg-green-500',
         medium: 'bg-yellow-500',
-        high: 'bg-orange-500',
-        critical: 'bg-red-500'
+        high: 'bg-red-500',
+        critical: 'bg-red-700'
     };
     return colors[severity] || 'bg-gray-500';
 };
@@ -71,8 +71,8 @@ export const getSeverityBadgeStyle = (severity: ComplaintSeverity): string => {
     const styles: Record<ComplaintSeverity, string> = {
         low: 'bg-green-100 text-green-800 border-green-200',
         medium: 'bg-yellow-100 text-yellow-800 border-yellow-200',
-        high: 'bg-orange-100 text-orange-800 border-orange-200',
-        critical: 'bg-red-100 text-red-800 border-red-200'
+        high: 'bg-red-100 text-red-800 border-red-200',
+        critical: 'bg-red-200 text-red-900 border-red-300'
     };
     return styles[severity] || 'bg-gray-100 text-gray-800';
 };

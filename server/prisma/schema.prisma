@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -16,6 +16,15 @@ model User {
   role          String         // 'student', 'technician', 'admin'
   department    String?
   avatar        String?
+  
+  // Technician specific fields
+  skillType     String?        // 'Electrical', 'IT', 'Plumbing', etc.
+  assignedArea  String?        // 'Building A', 'Library', etc.
+  isAvailable   Boolean        @default(true)
+  
+  // Security fields
+  requiresPasswordChange Boolean @default(false)
+  
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   complaints    Complaint[]    @relation("StudentComplaints")

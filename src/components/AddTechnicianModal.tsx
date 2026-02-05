@@ -1,54 +1,58 @@
 import { useState } from 'react';
-import { X, UserPlus } from 'lucide-react';
-import { addTechnician } from '../data/mockData';
-import type { Technician } from '../types';
+import { X, UserPlus, Loader2 } from 'lucide-react';
+import api from '../services/api';
 
 const AddTechnicianModal = ({ onClose }: { onClose: () => void }) => {
     const [formData, setFormData] = useState({
         name: '',
         email: '',
         building: '',
-        specialization: 'general',
+        specialization: 'General Maintenance',
         phone: '',
-        password: '',
     });
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        setIsLoading(true);
+        setError(null);
 
-        const newTech: Technician = {
-            id: `T${Date.now()}`,
-            name: formData.name,
-            email: formData.email,
-            role: 'technician',
-            phone: formData.phone || '+91 99999 00000',
-            specialization: [formData.specialization],
-            assignedBuilding: formData.building,
-            availability: 'available',
-            assignedComplaints: 0,
-            completedComplaints: 0,
-            averageResolutionTime: 0,
-            rating: 5.0,
-            avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${formData.name}`,
-            password: formData.password || 'password123'
-        } as any;
+        try {
+            await api.post('/auth/technicians', {
+                name: formData.name,
+                email: formData.email,
+                phone: formData.phone,
+                skillType: formData.specialization,
+                assignedArea: formData.building
+            });
 
-        addTechnician(newTech);
-        alert(`✅ Technician ${newTech.name} Registered Successfully!`);
-        onClose();
+            alert(`✅ Technician ${formData.name} Registered Successfully!\nCredentials sent via Email & SMS.`);
+            onClose();
+        } catch (err: any) {
+            setError(err.response?.data?.message || 'Failed to register technician');
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     return (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl shadow-2xl max-w-md w-full">
+            <div className="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden">
                 <div className="p-6 border-b border-gray-200 flex items-center justify-between">
                     <h2 className="text-xl font-bold text-gray-900">Register Technician</h2>
-                    <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg">
+                    <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
                         <X className="w-5 h-5 text-gray-600" />
                     </button>
                 </div>
 
                 <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                    {error && (
+                        <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm border border-red-200">
+                            {error}
+                        </div>
+                    )}
+
                     <div>
                         <label className="block text-sm font-semibold text-gray-700 mb-1">Full Name</label>
                         <input
@@ -56,60 +60,60 @@ const AddTechnicianModal = ({ onClose }: { onClose: () => void }) => {
                             required
                             value={formData.name}
                             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                            className="input-field-light"
+                            className="w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-blue-500 outline-none"
                             placeholder="e.g. John Doe"
                         />
                     </div>
 
                     <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-1">Email</label>
+                        <label className="block text-sm font-semibold text-gray-700 mb-1">Email (Official)</label>
                         <input
                             type="email"
                             required
                             value={formData.email}
                             onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                            className="input-field-light"
+                            className="w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-blue-500 outline-none"
                             placeholder="john@campus.edu"
                         />
                     </div>
 
-                    <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-1">Primary Skill</label>
-                        <select
-                            value={formData.specialization}
-                            onChange={(e) => setFormData({ ...formData, specialization: e.target.value })}
-                            className="input-field-light"
-                        >
-                            <option value="general">General Maintenance</option>
-                            <option value="electrical">Electrical</option>
-                            <option value="plumbing">Plumbing</option>
-                            <option value="it">IT / Computer</option>
-                            <option value="ac">AC / HVAC</option>
-                            <option value="cleaning">Cleaning</option>
-                        </select>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-semibold text-gray-700 mb-1">Primary Skill</label>
+                            <select
+                                value={formData.specialization}
+                                onChange={(e) => setFormData({ ...formData, specialization: e.target.value })}
+                                className="w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-blue-500 outline-none"
+                            >
+                                <option value="General Maintenance">General</option>
+                                <option value="Electrical">Electrical</option>
+                                <option value="Plumbing">Plumbing</option>
+                                <option value="IT">IT / Computer</option>
+                                <option value="AC">AC / HVAC</option>
+                                <option value="Carpentry">Carpentry</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-semibold text-gray-700 mb-1">Phone</label>
+                            <input
+                                type="tel"
+                                required
+                                value={formData.phone}
+                                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                                className="w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-blue-500 outline-none"
+                                placeholder="+91..."
+                            />
+                        </div>
                     </div>
 
                     <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-1">Phone Number</label>
+                        <label className="block text-sm font-semibold text-gray-700 mb-1">Assigned Building / Area</label>
                         <input
-                            type="tel"
-                            required
-                            value={formData.phone}
-                            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                            className="input-field-light"
-                            placeholder="+91 98765 43210"
-                        />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-1">Password</label>
-                        <input
-                            type="password"
-                            required
-                            value={formData.password}
-                            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                            className="input-field-light"
-                            placeholder="Set a password"
+                            type="text"
+                            value={formData.building}
+                            onChange={(e) => setFormData({ ...formData, building: e.target.value })}
+                            className="w-full px-4 py-2 rounded-lg border focus:ring-2 focus:ring-blue-500 outline-none"
+                            placeholder="e.g. Building A"
                         />
                     </div>
 
@@ -117,18 +121,31 @@ const AddTechnicianModal = ({ onClose }: { onClose: () => void }) => {
                         <button
                             type="button"
                             onClick={onClose}
-                            className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 font-semibold rounded-lg hover:bg-gray-200"
+                            className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 font-semibold rounded-lg hover:bg-gray-200 transition-colors"
                         >
                             Cancel
                         </button>
                         <button
                             type="submit"
-                            className="flex-1 btn-primary flex items-center justify-center gap-2"
+                            disabled={isLoading}
+                            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg py-2 flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
                         >
-                            <UserPlus className="w-4 h-4" />
-                            Register
+                            {isLoading ? (
+                                <>
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                    Registering...
+                                </>
+                            ) : (
+                                <>
+                                    <UserPlus className="w-4 h-4" />
+                                    Register
+                                </>
+                            )}
                         </button>
                     </div>
+                    <p className="text-xs text-center text-gray-500">
+                        Login credentials will be automatically sent to the technician.
+                    </p>
                 </form>
             </div>
         </div>

@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { prisma } from '../db/prisma';
 
 import { createNotification } from '../services/notificationService';
+import { calculatePriority } from '../services/priorityService';
 
 export const createComplaint = async (req: Request, res: Response) => {
     const { assetId, title, description, severity, images, video } = req.body;
@@ -24,18 +25,34 @@ export const createComplaint = async (req: Request, res: Response) => {
         const asset = await prisma.asset.findUnique({ where: { id: assetId } });
         if (!asset) return res.status(404).json({ message: 'Asset not found' });
 
-        // 3. Find technician based on department/availability (Auto-assignment)
-        // Basic logic: find available technician in the same department/building
-        const technician = await prisma.user.findFirst({
-            where: {
-                role: 'technician',
-                department: asset.department,
-                // In a real app we'd check availability or task load
-            },
-            orderBy: { assignments: { _count: 'asc' } } // Load balancing
-        });
+        // 3. Calculate Priority automatically
+        const calculatedSeverity = calculatePriority(title, description, asset.type);
+        const finalSeverity = calculatedSeverity; // Enforce system calculation
 
-        // 4. Create complaint
+        // 4. Find technician based on department/availability & Priority
+        let technician;
+
+        if (finalSeverity === 'high') {
+            // High Priority: Find FIRST AVAILABLE technician immediately (ignore load)
+            technician = await prisma.user.findFirst({
+                where: {
+                    role: 'technician',
+                    department: asset.department,
+                    isAvailable: true
+                }
+            });
+        } else {
+            // Medium/Low: Load balancing (find one with least assignments)
+            technician = await prisma.user.findFirst({
+                where: {
+                    role: 'technician',
+                    department: asset.department,
+                },
+                orderBy: { assignments: { _count: 'asc' } }
+            });
+        }
+
+        // 5. Create complaint
         const complaint = await prisma.complaint.create({
             data: {
                 assetId,
@@ -43,39 +60,39 @@ export const createComplaint = async (req: Request, res: Response) => {
                 technicianId: technician?.id || null,
                 title,
                 description,
-                severity: severity || 'medium',
+                severity: finalSeverity,
                 status: technician ? 'assigned' : 'reported',
                 images: JSON.stringify(images || []),
                 video,
             },
         });
 
-        // 5. Create audit log
+        // 6. Create audit log
         await prisma.auditLog.create({
             data: {
                 userId: studentId,
                 action: 'COMPLAINT_CREATED',
-                details: `Complaint ${complaint.id} created for asset ${assetId}. Auto-assigned to: ${technician?.name || 'None'}`
+                details: `Complaint ${complaint.id} created. Priority: ${finalSeverity}. Assigned to: ${technician?.name || 'None'}`
             }
         });
 
-        // 6. Create initial status update
+        // 7. Create initial status update
         await prisma.statusUpdate.create({
             data: {
                 complaintId: complaint.id,
                 status: complaint.status,
                 updatedBy: (req as any).user.name || 'System',
-                notes: 'Initial report submitted'
+                notes: `Initial report submitted. System detected ${finalSeverity.toUpperCase()} priority.`
             }
         });
 
-        // 7. Send Notifications
+        // 8. Send Notifications
         // Notify Student
         await createNotification(
             studentId,
             'complaint_created',
             'Complaint Registered',
-            `Your complaint "${title}" has been successfully registered.`,
+            `Your complaint "${title}" has been registered with ${finalSeverity.toUpperCase()} priority.`,
             complaint.id
         );
 
@@ -85,9 +102,23 @@ export const createComplaint = async (req: Request, res: Response) => {
                 technician.id,
                 'complaint_assigned',
                 'New Assignment',
-                `You have been assigned a new complaint: "${title}" at ${asset?.building} ${asset?.room}`,
+                `URGENT: New ${finalSeverity} priority complaint: "${title}" at ${asset.building} ${asset.room}`,
                 complaint.id
             );
+        }
+
+        // Notify Admin for High Priority
+        if (finalSeverity === 'high') {
+            const admins = await prisma.user.findMany({ where: { role: 'admin' } });
+            for (const admin of admins) {
+                await createNotification(
+                    admin.id,
+                    'high_priority_alert',
+                    'High Priority Complaint',
+                    `CRITICAL: High priority complaint reported at ${asset.building} ${asset.room}. Technician: ${technician ? technician.name : 'Unassigned'}`,
+                    complaint.id
+                );
+            }
         }
 
         res.status(201).json(complaint);
@@ -98,7 +129,7 @@ export const createComplaint = async (req: Request, res: Response) => {
 
 export const updateComplaintStatus = async (req: Request, res: Response) => {
     const { id } = req.params;
-    const { status, notes, repairEvidence } = req.body;
+    const { status, notes, repairEvidence, severity } = req.body;
     const userId = (req as any).user.id;
 
     try {
@@ -116,6 +147,7 @@ export const updateComplaintStatus = async (req: Request, res: Response) => {
             data: {
                 status,
                 repairEvidence: repairEvidence || complaint.repairEvidence,
+                severity: severity || complaint.severity,
                 resolvedAt: status === 'resolved' ? new Date() : complaint.resolvedAt,
                 otp
             },

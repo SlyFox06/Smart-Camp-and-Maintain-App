@@ -3,6 +3,7 @@ import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { LogIn, User, Lock, ArrowRight, Loader } from 'lucide-react';
 import { useEffect } from 'react';
+import { ForcePasswordChange } from './ForcePasswordChange';
 
 const Login = () => {
     const [email, setEmail] = useState('');
@@ -20,6 +21,8 @@ const Login = () => {
         }
     }, [isAuthenticated, loggedInUser, navigate]);
 
+    const [showForceChange, setShowForceChange] = useState(false);
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
@@ -27,6 +30,11 @@ const Login = () => {
 
         try {
             const user = await login(email, password);
+
+            if (user.requiresPasswordChange) {
+                setShowForceChange(true);
+                return;
+            }
 
             const from = location.state?.from?.pathname;
             if (from) {
@@ -41,6 +49,10 @@ const Login = () => {
             setIsSubmitting(false);
         }
     };
+
+    if (showForceChange) {
+        return <div className="min-h-screen bg-slate-50"><ForcePasswordChange /></div>;
+    }
 
     return (
         <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">

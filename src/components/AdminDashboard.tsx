@@ -76,22 +76,22 @@ const AdminDashboard = () => {
             <div className="max-w-7xl mx-auto">
                 {/* Header */}
                 <div className="mb-8">
-                    <div className="flex items-center justify-between mb-6">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                         <div>
                             <h1 className="text-4xl font-bold text-white mb-2">Admin Dashboard</h1>
                             <p className="text-white/80">System Overview & Analytics</p>
                         </div>
                         <div className="flex items-center gap-3">
                             <NotificationBell />
-                            <div className="px-4 py-2 bg-white/20 backdrop-blur-sm rounded-full text-white font-semibold">
-                                <Shield className="w-5 h-5 inline mr-2" />
+                            <div className="px-4 py-2 bg-white/20 backdrop-blur-sm rounded-full text-white font-semibold flex items-center">
+                                <Shield className="w-5 h-5 mr-2" />
                                 {currentAdmin.name}
                             </div>
                         </div>
                     </div>
 
                     {/* Stats */}
-                    <div className="grid md:grid-cols-4 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                         {stats.map((stat, index) => {
                             const Icon = stat.icon;
                             return (
@@ -181,7 +181,7 @@ const OverviewTab = ({ analytics }: { analytics: AnalyticsData }) => {
                         const colors = {
                             low: 'from-green-50 to-green-100 border-green-200 text-green-800',
                             medium: 'from-yellow-50 to-yellow-100 border-yellow-200 text-yellow-800',
-                            high: 'from-orange-50 to-orange-100 border-orange-200 text-orange-800',
+                            high: 'from-red-50 to-red-100 border-red-200 text-red-800',
                             critical: 'from-red-50 to-red-100 border-red-200 text-red-800'
                         };
                         return (
