@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import {
     createComplaint,
+    approveComplaint,
     updateComplaintStatus,
     verifyOTP,
     getAnalytics,
@@ -13,6 +14,7 @@ import { authenticate, authorize } from '../middleware/auth';
 const router = Router();
 
 router.post('/', authenticate, authorize(['student']), createComplaint);
+router.post('/:id/approval', authenticate, authorize(['admin']), approveComplaint); // Admin Approval
 router.patch('/:id/status', authenticate, authorize(['technician', 'admin']), updateComplaintStatus);
 router.post('/:id/verify', authenticate, authorize(['student']), verifyOTP);
 router.get('/analytics', authenticate, authorize(['admin']), getAnalytics);

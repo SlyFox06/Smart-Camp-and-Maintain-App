@@ -19,6 +19,8 @@ const ComplaintForm = ({ onClose, prefilledAssetId }: ComplaintFormProps) => {
     const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState('');
+    const [activeComplaint, setActiveComplaint] = useState<any>(null);
+    const [isCheckingAsset, setIsCheckingAsset] = useState(false);
 
     const imageInputRef = useRef<HTMLInputElement>(null);
     const videoInputRef = useRef<HTMLInputElement>(null);
@@ -34,6 +36,31 @@ const ComplaintForm = ({ onClose, prefilledAssetId }: ComplaintFormProps) => {
         };
         fetchAssets();
     }, []);
+
+    // Check if selected asset has an active complaint
+    useEffect(() => {
+        const checkAssetStatus = async () => {
+            if (!assetId) {
+                setActiveComplaint(null);
+                return;
+            }
+
+            setIsCheckingAsset(true);
+            try {
+                const response = await api.get(`/assets/${assetId}/active-complaint`);
+                if (response.data) {
+                    setActiveComplaint(response.data);
+                } else {
+                    setActiveComplaint(null);
+                }
+            } catch (err) {
+                setActiveComplaint(null);
+            } finally {
+                setIsCheckingAsset(false);
+            }
+        };
+        checkAssetStatus();
+    }, [assetId]);
 
     const selectedAsset = assets.find(a => a.id === assetId);
     const predictedSeverity = title && description ? classifySeverity(title, description) : null;

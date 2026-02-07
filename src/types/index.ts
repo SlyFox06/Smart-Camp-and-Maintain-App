@@ -29,7 +29,7 @@ export interface Asset {
 }
 
 // Complaint Types
-export type ComplaintStatus = 'reported' | 'assigned' | 'in_progress' | 'resolved' | 'closed';
+export type ComplaintStatus = 'reported' | 'assigned' | 'in_progress' | 'resolved' | 'closed' | 'rejected';
 export type ComplaintSeverity = 'low' | 'medium' | 'high' | 'critical';
 
 export interface Complaint {
@@ -46,7 +46,7 @@ export interface Complaint {
     severity: ComplaintSeverity;
     images: string[];
     video?: string;
-    location: {
+    location?: {
         latitude: number;
         longitude: number;
         address: string;

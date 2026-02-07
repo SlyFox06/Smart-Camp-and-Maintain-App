@@ -1,9 +1,10 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { prisma } from '../db/prisma';
+import { supabase, handleSupabaseError } from '../db/supabase';
 import { sendEmail, sendSMS, templates } from '../services/communication';
 import * as crypto from 'crypto';
+import { toCamelCase } from '../utils/format';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your_super_secret_jwt_key_here';
 
@@ -15,14 +16,21 @@ export const register = async (req: Request, res: Response) => {
             return res.status(403).json({ message: 'Only students can self-register' });
         }
 
-        const existingUser = await prisma.user.findUnique({ where: { email } });
+        const { data: existingUser } = await supabase
+            .from('users')
+            .select('id')
+            .eq('email', email)
+            .single();
+
         if (existingUser) {
             return res.status(400).json({ message: 'User already exists' });
         }
 
         const hashedPassword = await bcrypt.hash(password, 10);
-        const user = await prisma.user.create({
-            data: {
+
+        const { data: user, error } = await supabase
+            .from('users')
+            .insert({
                 email,
                 password: hashedPassword,
                 name,
@@ -30,14 +38,18 @@ export const register = async (req: Request, res: Response) => {
                 department,
                 phone,
                 avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${name}`,
-            },
-        });
+                is_first_login: true
+            })
+            .select()
+            .single();
+
+        if (error) throw error;
 
         const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
 
-        res.status(201).json({ user, token });
-    } catch (error) {
-        res.status(500).json({ message: 'Registration failed', error });
+        res.status(201).json({ user: toCamelCase(user), token });
+    } catch (error: any) {
+        res.status(500).json({ message: 'Registration failed', error: error.message });
     }
 };
 
@@ -45,8 +57,13 @@ export const login = async (req: Request, res: Response) => {
     const { email, password } = req.body;
 
     try {
-        const user = await prisma.user.findUnique({ where: { email } });
-        if (!user) {
+        const { data: user, error } = await supabase
+            .from('users')
+            .select('*')
+            .eq('email', email)
+            .single();
+
+        if (error || !user) {
             return res.status(401).json({ message: 'Invalid credentials' });
         }
 
@@ -57,13 +74,16 @@ export const login = async (req: Request, res: Response) => {
 
         const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
 
+        // Map snake_case to camelCase for frontend compatibility
+        const camelUser = toCamelCase(user);
+
         res.json({
-            user,
+            user: camelUser,
             token,
-            requiresPasswordChange: user.requiresPasswordChange
+            requiresPasswordChange: camelUser.isFirstLogin // Mapped from is_first_login
         });
-    } catch (error) {
-        res.status(500).json({ message: 'Login failed', error });
+    } catch (error: any) {
+        res.status(500).json({ message: 'Login failed', error: error.message });
     }
 };
 
@@ -78,78 +98,90 @@ export const changePassword = async (req: Request, res: Response) => {
     try {
         const hashedPassword = await bcrypt.hash(newPassword, 10);
 
-        const user = await prisma.user.update({
-            where: { id: userId },
-            data: {
+        const { data: user, error } = await supabase
+            .from('users')
+            .update({
                 password: hashedPassword,
-                requiresPasswordChange: false // Mark as changed
-            }
+                is_first_login: false
+            })
+            .eq('id', userId)
+            .select()
+            .single();
+
+        if (error) throw error;
+
+        await supabase.from('audit_logs').insert({
+            user_id: userId,
+            action: 'PASSWORD_CHANGED',
+            details: 'User changed password successfully'
         });
 
-        // Log action
-        await prisma.auditLog.create({
-            data: {
-                userId,
-                action: 'PASSWORD_CHANGED',
-                details: 'User changed password successfully'
-            }
-        });
-
-        res.json({ message: 'Password changed successfully', user });
-    } catch (error) {
-        res.status(500).json({ message: 'Password change failed', error });
+        res.json({ message: 'Password changed successfully', user: toCamelCase(user) });
+    } catch (error: any) {
+        res.status(500).json({ message: 'Password change failed', error: error.message });
     }
 };
 
-// Admin only: create technician
 export const createTechnician = async (req: Request, res: Response) => {
     const { email, name, phone, skillType, assignedArea } = req.body;
     const adminId = (req as any).user?.id;
 
     try {
-        const existingUser = await prisma.user.findUnique({ where: { email } });
+        const { data: existingUser } = await supabase
+            .from('users')
+            .select('id')
+            .eq('email', email)
+            .single();
+
         if (existingUser) {
             return res.status(400).json({ message: 'User already exists' });
         }
 
-        // Generate temporary password
-        const tempPassword = crypto.randomBytes(4).toString('hex'); // 8 chars
+        const tempPassword = crypto.randomBytes(4).toString('hex');
         const hashedPassword = await bcrypt.hash(tempPassword, 10);
 
-        const user = await prisma.$transaction(async (tx) => {
-            // 1. Create user
-            const newUser = await tx.user.create({
-                data: {
-                    email,
-                    password: hashedPassword,
-                    name,
-                    role: 'technician',
-                    phone,
-                    skillType,
-                    assignedArea,
-                    requiresPasswordChange: true, // Force change on first login
-                    avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${name}`,
-                },
+        const { data: newUser, error: userError } = await supabase
+            .from('users')
+            .insert({
+                email,
+                password: hashedPassword,
+                name,
+                role: 'technician',
+                phone,
+                department: 'Maintenance',
+                is_first_login: true,
+                avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${name}`,
+            })
+            .select()
+            .single();
+
+        if (userError) throw userError;
+
+        const { error: techError } = await supabase
+            .from('technicians')
+            .insert({
+                user_id: newUser.id,
+                skill_type: skillType,
+                assigned_area: assignedArea,
+                temporary_password: tempPassword,
+                is_available: true
             });
 
-            // 2. Audit Log
-            if (adminId) {
-                await tx.auditLog.create({
-                    data: {
-                        userId: adminId,
-                        action: 'TECHNICIAN_REGISTERED',
-                        details: `Registered technician: ${name} (${email})`
-                    }
-                });
-            }
+        if (techError) {
+            await supabase.from('users').delete().eq('id', newUser.id);
+            throw techError;
+        }
 
-            return newUser;
-        });
+        if (adminId) {
+            await supabase.from('audit_logs').insert({
+                user_id: adminId,
+                action: 'TECHNICIAN_REGISTERED',
+                details: `Registered technician: ${name} (${email})`
+            });
+        }
 
-        // 3. Send Credentials via Email & SMS
         const loginUrl = 'http://localhost:5173/login';
 
-        // Non-blocking notifications (don't fail request if email fails)
         Promise.allSettled([
             sendEmail(
                 email,
@@ -163,27 +195,33 @@ export const createTechnician = async (req: Request, res: Response) => {
 
         res.status(201).json({
             message: 'Technician registered successfully',
-            technician: { id: user.id, email: user.email, name: user.name }
+            technician: { id: newUser.id, email: newUser.email, name: newUser.name }
         });
 
-    } catch (error) {
-        res.status(500).json({ message: 'Technician registration failed', error });
+    } catch (error: any) {
+        res.status(500).json({ message: 'Technician registration failed', error: error.message });
     }
 };
 
-// Generic create user (kept for backward compatibility if needed)
 export const createUser = async (req: Request, res: Response) => {
     const { email, password, name, role, department, phone } = req.body;
 
     try {
-        const existingUser = await prisma.user.findUnique({ where: { email } });
+        const { data: existingUser } = await supabase
+            .from('users')
+            .select('id')
+            .eq('email', email)
+            .single();
+
         if (existingUser) {
             return res.status(400).json({ message: 'User already exists' });
         }
 
         const hashedPassword = await bcrypt.hash(password, 10);
-        const user = await prisma.user.create({
-            data: {
+
+        const { data: user, error } = await supabase
+            .from('users')
+            .insert({
                 email,
                 password: hashedPassword,
                 name,
@@ -191,11 +229,15 @@ export const createUser = async (req: Request, res: Response) => {
                 department,
                 phone,
                 avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${name}`,
-            },
-        });
+                is_first_login: true
+            })
+            .select()
+            .single();
 
-        res.status(201).json({ user });
-    } catch (error) {
-        res.status(500).json({ message: 'User creation failed', error });
+        if (error) throw error;
+
+        res.status(201).json({ user: toCamelCase(user) });
+    } catch (error: any) {
+        res.status(500).json({ message: 'User creation failed', error: error.message });
     }
 };

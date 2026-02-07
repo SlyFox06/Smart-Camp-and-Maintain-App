@@ -11,7 +11,8 @@ import {
     getFaultyAssets,
     searchAssets,
     getAssetsByLocation,
-    getAssetFilters
+    getAssetFilters,
+    getActiveComplaint
 } from '../controllers/assetController';
 import { authenticate, authorize } from '../middleware/auth';
 
@@ -22,6 +23,7 @@ const router = Router();
 // ====================================================================
 router.get('/qr', authenticate, getAssetByQR); // GET /api/assets/qr?qrUrl=xxx
 router.get('/:id/details', authenticate, getAssetDetails); // Full details with history
+router.get('/:id/active-complaint', authenticate, getActiveComplaint); // Check for active complaint
 
 // ====================================================================
 // 🔍 SEARCH & FILTER ROUTES

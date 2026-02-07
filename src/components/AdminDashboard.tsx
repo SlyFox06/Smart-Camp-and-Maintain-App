@@ -206,7 +206,11 @@ const ComplaintsTab = ({ onSelectComplaint }: { onSelectComplaint: (complaint: C
         const fetchAll = async () => {
             try {
                 const response = await api.get('/complaints/admin');
-                setComplaints(response.data);
+                // Filter out rejected complaints
+                const activeComplaints = response.data.filter(
+                    (complaint: Complaint) => complaint.status !== 'rejected'
+                );
+                setComplaints(activeComplaints);
             } catch (error) {
                 console.error('Failed to fetch all complaints', error);
             } finally {
@@ -241,10 +245,11 @@ const ComplaintsTab = ({ onSelectComplaint }: { onSelectComplaint: (complaint: C
                         </div>
                         <div className="flex flex-col gap-2 items-end">
                             <span className={`px-3 py-1 rounded-full text-xs font-semibold ${complaint.status === 'reported' ? 'bg-blue-100 text-blue-800' :
-                                complaint.status === 'assigned' ? 'bg-yellow-100 text-yellow-800' :
-                                    complaint.status === 'in_progress' ? 'bg-orange-100 text-orange-800' :
-                                        complaint.status === 'resolved' ? 'bg-green-100 text-green-800' :
-                                            'bg-gray-100 text-gray-800'
+                                    complaint.status === 'assigned' ? 'bg-yellow-100 text-yellow-800' :
+                                        complaint.status === 'in_progress' ? 'bg-orange-100 text-orange-800' :
+                                            complaint.status === 'resolved' ? 'bg-green-100 text-green-800' :
+                                                complaint.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                                                    'bg-gray-100 text-gray-800'
                                 }`}>
                                 {complaint.status.replace('_', ' ').toUpperCase()}
                             </span>
