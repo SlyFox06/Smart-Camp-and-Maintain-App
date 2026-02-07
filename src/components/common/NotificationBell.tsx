@@ -54,7 +54,7 @@ const NotificationBell = () => {
             </button>
 
             {isOpen && (
-                <div className="absolute right-0 mt-2 w-80 md:w-96 bg-white rounded-xl shadow-2xl overflow-hidden z-[100] border border-gray-100 animation-fade-in-up">
+                <div className="fixed top-24 left-4 right-4 md:absolute md:top-full md:left-auto md:right-0 md:w-96 bg-white rounded-xl shadow-2xl overflow-hidden z-[100] border border-gray-100 animation-fade-in-up">
                     <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-gray-50">
                         <h3 className="font-semibold text-gray-800">Notifications</h3>
                         {unreadCount > 0 && (
@@ -86,7 +86,7 @@ const NotificationBell = () => {
                                                 <p className={`text-sm ${!notification.read ? 'font-semibold text-gray-900' : 'text-gray-700'}`}>
                                                     {notification.title}
                                                 </p>
-                                                <p className="text-sm text-gray-600 mt-1 line-clamp-2">
+                                                <p className="text-sm text-gray-600 mt-1">
                                                     {notification.message}
                                                 </p>
                                                 <p className="text-xs text-gray-400 mt-2">

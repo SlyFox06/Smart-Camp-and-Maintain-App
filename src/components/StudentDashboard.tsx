@@ -80,30 +80,30 @@ const StudentDashboard = ({ prefilledAssetId, autoOpenForm }: StudentDashboardPr
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 p-6">
+        <div className="min-h-screen bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 p-4 md:p-6">
             <div className="max-w-7xl mx-auto">
                 {/* Header */}
                 <div className="mb-8">
-                    <div className="flex items-center justify-between mb-6">
-                        <div>
-                            <h1 className="text-4xl font-bold text-white mb-2">Student Dashboard</h1>
+                    <div className="flex flex-col md:flex-row items-center justify-between mb-6 gap-4">
+                        <div className="text-center md:text-left">
+                            <h1 className="text-3xl md:text-4xl font-bold text-white mb-2">Student Dashboard</h1>
                             <p className="text-white/80">Welcome back, {currentUser.name}!</p>
                         </div>
-                        <div className="flex gap-3 items-center">
+                        <div className="flex flex-wrap gap-3 items-center justify-center w-full md:w-auto">
                             <NotificationBell />
                             <button
                                 onClick={() => setShowQRScanner(true)}
-                                className="btn-secondary flex items-center gap-2"
+                                className="btn-secondary flex items-center gap-2 px-4 py-2 text-sm md:text-base"
                             >
                                 <QrCode className="w-5 h-5" />
-                                Scan QR Code
+                                Scan Asset
                             </button>
                             <button
                                 onClick={() => setShowComplaintForm(true)}
-                                className="btn-primary flex items-center gap-2"
+                                className="btn-primary flex items-center gap-2 px-4 py-2 text-sm md:text-base"
                             >
                                 <Plus className="w-5 h-5" />
-                                New Complaint
+                                Report Issue
                             </button>
                         </div>
                     </div>
@@ -177,18 +177,20 @@ const StudentDashboard = ({ prefilledAssetId, autoOpenForm }: StudentDashboardPr
                             <div
                                 key={complaint.id}
                                 onClick={() => setSelectedComplaint(complaint)}
-                                className="glass-card-light p-6 card-hover cursor-pointer"
+                                className="glass-card-light p-4 md:p-6 card-hover cursor-pointer"
                             >
-                                <div className="flex items-start justify-between mb-4">
-                                    <div className="flex-1">
-                                        <div className="flex items-center gap-3 mb-2">
-                                            <h3 className="text-xl font-semibold text-gray-900">{complaint.title}</h3>
-                                            <span className={`status-badge ${getStatusBadgeStyle(complaint.status)} border`}>
-                                                {complaint.status.replace('_', ' ').toUpperCase()}
-                                            </span>
-                                            <span className={`status-badge ${getSeverityBadgeStyle(complaint.severity)} border`}>
-                                                {complaint.severity.toUpperCase()}
-                                            </span>
+                                <div className="flex flex-col md:flex-row items-start justify-between mb-4 gap-4">
+                                    <div className="flex-1 w-full">
+                                        <div className="flex flex-wrap items-center gap-2 md:gap-3 mb-2">
+                                            <h3 className="text-lg md:text-xl font-semibold text-gray-900 truncate max-w-[200px] md:max-w-none">{complaint.title}</h3>
+                                            <div className="flex gap-2">
+                                                <span className={`status-badge ${getStatusBadgeStyle(complaint.status)} border text-xs md:text-sm`}>
+                                                    {complaint.status.replace('_', ' ').toUpperCase()}
+                                                </span>
+                                                <span className={`status-badge ${getSeverityBadgeStyle(complaint.severity)} border text-xs md:text-sm`}>
+                                                    {complaint.severity.toUpperCase()}
+                                                </span>
+                                            </div>
                                         </div>
                                         <p className="text-gray-600 mb-2">{complaint.description}</p>
                                         <div className="flex items-center gap-4 text-sm text-gray-500">
@@ -199,13 +201,31 @@ const StudentDashboard = ({ prefilledAssetId, autoOpenForm }: StudentDashboardPr
                                             <span>{getTimeDifference(complaint.createdAt)}</span>
                                         </div>
                                     </div>
-                                    {complaint.images && complaint.images.length > 0 && (
-                                        <img
-                                            src={typeof complaint.images === 'string' ? JSON.parse(complaint.images)[0] : complaint.images[0]}
-                                            alt="Complaint"
-                                            className="w-24 h-24 object-cover rounded-lg ml-4"
-                                        />
-                                    )}
+                                    {(() => {
+                                        const raw = complaint.images as any;
+                                        let imgUrl = null;
+                                        if (Array.isArray(raw) && raw.length > 0) imgUrl = raw[0];
+                                        else if (typeof raw === 'string') {
+                                            try {
+                                                const parsed = JSON.parse(raw);
+                                                if (Array.isArray(parsed) && parsed.length > 0) imgUrl = parsed[0];
+                                                else if (raw.length > 0 && !raw.startsWith('[')) imgUrl = raw;
+                                            } catch {
+                                                if (raw.length > 0) imgUrl = raw;
+                                            }
+                                        }
+
+                                        if (imgUrl) {
+                                            return (
+                                                <img
+                                                    src={imgUrl}
+                                                    alt="Complaint"
+                                                    className="w-full h-48 md:w-24 md:h-24 object-cover rounded-lg md:ml-4 order-first md:order-last mb-4 md:mb-0"
+                                                />
+                                            );
+                                        }
+                                        return null;
+                                    })()}
                                 </div>
 
                                 {complaint.technician && (

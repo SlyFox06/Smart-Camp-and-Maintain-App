@@ -1,8 +1,12 @@
-import express from 'express';
-import { getNotifications, markNotificationRead, markAllRead } from '../controllers/notificationController';
+import { Router } from 'express';
+import {
+    getNotifications,
+    markNotificationRead,
+    markAllRead
+} from '../controllers/notificationController';
 import { authenticate } from '../middleware/auth';
 
-const router = express.Router();
+const router = Router();
 
 router.use(authenticate); // Protect all routes
 

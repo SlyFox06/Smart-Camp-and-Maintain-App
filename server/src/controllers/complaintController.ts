@@ -1,344 +1,327 @@
 import { Request, Response } from 'express';
-import { supabase } from '../db/supabase';
-import queries from '../db/queries';
-import { toCamelCase } from '../utils/format';
-import * as notificationService from '../services/notificationService';
-import { calculatePriority } from '../services/priorityService';
-
-const notify = async (userId: string, type: string, title: string, message: string, complaintId: string) => {
-    await notificationService.createNotification(userId, type, title, message, complaintId);
-};
+import prisma from '../db/prisma';
+import { createNotification } from '../services/notificationService';
 
 export const createComplaint = async (req: Request, res: Response) => {
-    const { assetId, title, description, images, video } = req.body;
-    const studentId = (req as any).user.id;
-    const complaintTitle = String(title);
-
     try {
-        const existingComplaint = await queries.hasActiveComplaint(assetId);
+        const { title, description, severity, images, video, assetId } = req.body;
+        const studentId = (req as any).user?.id;
 
-        if (existingComplaint) {
-            return res.status(400).json({ message: 'An active complaint already exists for this asset.' });
+        // Check for active complaint
+        const existing = await prisma.complaint.findFirst({
+            where: {
+                assetId,
+                status: { in: ['reported', 'assigned', 'in_progress', 'verified'] }
+            }
+        });
+
+        if (existing) {
+            return res.status(400).json({ message: 'This asset already has an active complaint.' });
         }
 
-        const { data: asset } = await supabase.from('assets').select('*').eq('id', assetId).single();
-        if (!asset) return res.status(404).json({ message: 'Asset not found' });
-
-        const calculatedSeverity = calculatePriority(title, description, asset.type);
-        const finalSeverity = calculatedSeverity;
-
-        const { data: complaint, error } = await supabase
-            .from('complaints')
-            .insert({
-                asset_id: assetId,
-                student_id: studentId,
+        const complaint = await prisma.complaint.create({
+            data: {
                 title,
                 description,
-                severity: finalSeverity,
-                status: 'reported',
-                images: JSON.stringify(images || []),
+                severity: severity || 'medium',
+                images: images ? JSON.stringify(images) : null,
                 video,
-            })
-            .select()
-            .single();
-
-        if (error) throw error;
-
-        await supabase.from('audit_logs').insert({
-            user_id: studentId,
-            action: 'COMPLAINT_CREATED',
-            details: `Complaint ${complaint.id} created. Priority: ${finalSeverity}. Status: Pending Approval.`
-        });
-
-        await supabase.from('status_history').insert({
-            complaint_id: complaint.id,
-            status: 'reported',
-            message: `Complaint reported. Waiting for Admin approval.`
-        });
-
-        // Notifications
-        await notify(
-            studentId,
-            'complaint_created',
-            'Complaint Reported',
-            `Your complaint "${complaintTitle}" has been submitted and is pending admin approval.`,
-            complaint.id
-        );
-
-        const { data: admins } = await supabase.from('users').select('id').eq('role', 'admin');
-        if (admins) {
-            for (const admin of admins) {
-                await notify(
-                    admin.id,
-                    'new_complaint_pending',
-                    'New Complaint Pending Approval',
-                    `New ${finalSeverity} priority complaint needs review: "${complaintTitle}" at ${asset.building} ${asset.room}.`,
-                    complaint.id
-                );
+                assetId,
+                studentId,
+                status: 'reported'
+            },
+            include: {
+                asset: true,
+                student: true
             }
+        });
+
+        // Create notification for admins
+        const admins = await prisma.user.findMany({
+            where: { role: 'admin' }
+        });
+
+        for (const admin of admins) {
+            await createNotification(
+                admin.id,
+                'New Complaint Reported',
+                `${complaint.student.name} reported: ${title}`,
+                'new_complaint',
+                complaint.id
+            );
         }
 
-        res.status(201).json(toCamelCase(complaint));
+        res.status(201).json(complaint);
     } catch (error: any) {
-        res.status(500).json({ message: 'Complaint registration failed', error: error.message });
+        console.error('Create complaint error:', error);
+        res.status(500).json({ message: 'Failed to create complaint', error: error.message });
     }
 };
 
-export const approveComplaint = async (req: Request, res: Response) => {
-    const { id } = req.params;
-    const { action, notes } = req.body;
-
+export const getMyComplaints = async (req: Request, res: Response) => {
     try {
-        const { data: complaint } = await supabase
-            .from('complaints')
-            .select(`*, asset:assets(*)`)
-            .eq('id', id)
-            .single();
+        const userId = (req as any).user?.id;
+        const complaints = await prisma.complaint.findMany({
+            where: { studentId: userId },
+            include: {
+                asset: true,
+                technician: true,
+                statusHistory: {
+                    orderBy: { timestamp: 'desc' }
+                }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
 
-        if (!complaint) return res.status(404).json({ message: 'Complaint not found' });
-        if (complaint.status !== 'reported') return res.status(400).json({ message: 'Complaint is not in reported status' });
-
-        if (action === 'reject') {
-            const { data: updatedComplaint } = await supabase
-                .from('complaints')
-                .update({
-                    status: 'rejected',
-                    rejection_reason: notes
-                })
-                .eq('id', id)
-                .select()
-                .single();
-
-            await supabase.from('status_history').insert({
-                complaint_id: id,
-                status: 'rejected',
-                message: String(notes || 'Complaint rejected by admin.')
-            });
-
-            await notify(
-                complaint.student_id,
-                'complaint_rejected',
-                'Complaint Rejected',
-                `Your complaint "${complaint.title}" was rejected. Reason: ${notes || 'No reason provided.'}`,
-                complaint.id
-            );
-
-            return res.json(toCamelCase(updatedComplaint));
-        }
-
-        if (action === 'accept') {
-            const finalSeverity = complaint.severity;
-            const asset = complaint.asset;
-
-            let { data: candidates } = await supabase
-                .from('users')
-                .select(`id, name, department, technicians!inner(is_available)`)
-                .eq('role', 'technician')
-                .eq('department', asset.department || 'Maintenance'); // Fallback
-
-            candidates = (candidates || []).filter((c: any) => c.technicians?.[0]?.is_available);
-
-            let technician = candidates?.[0];
-
-            const { data: updatedComplaint } = await supabase
-                .from('complaints')
-                .update({
-                    status: technician ? 'assigned' : 'in_progress',
-                    technician_id: technician?.id || null,
-                    assigned_at: new Date().toISOString()
-                })
-                .eq('id', id)
-                .select()
-                .single();
-
-            await supabase
-                .from('assets')
-                .update({ status: 'under_maintenance' })
-                .eq('id', asset.id);
-
-            await supabase.from('status_history').insert({
-                complaint_id: id,
-                status: 'assigned',
-                message: `Approved by admin. Assigned to ${technician?.name || 'Unassigned'}. ${notes ? `Admin notes: ${notes}` : ''}`
-            });
-
-            await notify(
-                complaint.student_id,
-                'complaint_approved',
-                'Complaint Approved',
-                `Your complaint has been approved and assigned to a technician.`,
-                complaint.id
-            );
-
-            if (technician) {
-                await notify(
-                    technician.id,
-                    'complaint_assigned',
-                    'New Assignment',
-                    `New Assignment: "${complaint.title}" at ${asset.building}. Priority: ${finalSeverity}.`,
-                    complaint.id
-                );
-            }
-
-            return res.json(toCamelCase(updatedComplaint));
-        }
-
-        res.status(400).json({ message: 'Invalid action' });
+        res.json(complaints);
     } catch (error: any) {
-        res.status(500).json({ message: 'Approval process failed', error: error.message });
+        console.error('Get my complaints error:', error);
+        res.status(500).json({ message: 'Failed to fetch complaints', error: error.message });
+    }
+};
+
+export const getAssignedComplaints = async (req: Request, res: Response) => {
+    try {
+        const technicianId = (req as any).user?.id;
+        const complaints = await prisma.complaint.findMany({
+            where: { technicianId },
+            include: {
+                asset: true,
+                student: true
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+
+        res.json(complaints);
+    } catch (error: any) {
+        console.error('Get assigned complaints error:', error);
+        res.status(500).json({ message: 'Failed to fetch complaints', error: error.message });
+    }
+};
+
+export const assignComplaint = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const { technicianId } = req.body;
+
+        const complaint = await prisma.complaint.update({
+            where: { id },
+            data: {
+                technicianId,
+                status: 'assigned',
+                assignedAt: new Date()
+            },
+            include: {
+                student: true,
+                technician: true,
+                asset: true
+            }
+        });
+
+        // Update asset status
+        await prisma.asset.update({
+            where: { id: complaint.assetId },
+            data: { status: 'under_maintenance' }
+        });
+
+        // Add status history
+        await prisma.statusHistory.create({
+            data: {
+                complaintId: id,
+                status: 'assigned',
+                message: `Assigned to ${complaint.technician?.name}`
+            }
+        });
+
+        // Notify technician
+        if (technicianId) {
+            await createNotification(
+                technicianId,
+                'New Complaint Assigned',
+                `You have been assigned: ${complaint.title}`,
+                'complaint_assigned',
+                id
+            );
+        }
+
+        // Notify student
+        await createNotification(
+            complaint.studentId,
+            'Complaint Assigned',
+            `Your complaint has been assigned to ${complaint.technician?.name}`,
+            'complaint_assigned',
+            id
+        );
+
+        res.json(complaint);
+    } catch (error: any) {
+        console.error('Assign complaint error:', error);
+        res.status(500).json({ message: 'Failed to assign complaint', error: error.message });
     }
 };
 
 export const updateComplaintStatus = async (req: Request, res: Response) => {
-    const { id } = req.params;
-    const { status, notes, repairEvidence, severity } = req.body;
-
     try {
-        const { data: complaint } = await supabase.from('complaints').select('*').eq('id', id).single();
-        if (!complaint) return res.status(404).json({ message: 'Complaint not found' });
+        const { id } = req.params;
+        const { status, message } = req.body;
 
-        let otp = complaint.otp;
-        let resolvedAt = complaint.resolved_at;
-
-        if (status === 'resolved' && !complaint.otp) {
-            otp = Math.floor(1000 + Math.random() * 9000).toString();
-            resolvedAt = new Date().toISOString();
-        }
-
-        const updateData: any = { status };
-        if (repairEvidence) updateData.images = repairEvidence;
-        if (severity) updateData.severity = severity;
-        if (otp) updateData.otp = otp;
-        if (resolvedAt) updateData.resolved_at = resolvedAt;
-
-        const { data: updatedComplaint, error } = await supabase
-            .from('complaints')
-            .update(updateData)
-            .eq('id', id)
-            .select()
-            .single();
-
-        if (error) throw error;
-
-        await supabase.from('status_history').insert({
-            complaint_id: id,
-            status,
-            message: notes
+        const complaint = await prisma.complaint.update({
+            where: { id },
+            data: {
+                status,
+                ...(status === 'resolved' && { resolvedAt: new Date() })
+            },
+            include: {
+                student: true,
+                asset: true
+            }
         });
 
-        await notify(
-            complaint.student_id,
-            'status_updated',
-            'Complaint Status Updated',
-            `Status changed to ${status}. ${notes ? `Notes: ${notes}` : ''}`,
-            complaint.id
-        );
+        // Add status history
+        await prisma.statusHistory.create({
+            data: {
+                complaintId: id,
+                status,
+                message: message || `Status updated to ${status}`
+            }
+        });
 
-        if (status === 'resolved') {
-            await notify(
-                complaint.student_id,
-                'complaint_resolved',
-                'Issue Resolved',
-                `Your complaint has been resolved. Use OTP ${otp} to verify and close.`,
-                complaint.id
-            );
+        // Update asset status if resolved
+        if (status === 'resolved' || status === 'closed') {
+            await prisma.asset.update({
+                where: { id: complaint.assetId },
+                data: { status: 'operational' }
+            });
         }
 
-        res.json(toCamelCase(updatedComplaint));
+        // Notify student
+        await createNotification(
+            complaint.studentId,
+            `Complaint ${status}`,
+            message || `Your complaint status has been updated to ${status}`,
+            `complaint_${status}`,
+            id
+        );
+
+        res.json(complaint);
     } catch (error: any) {
-        res.status(500).json({ message: 'Status update failed', error: error.message });
+        console.error('Update complaint status error:', error);
+        res.status(500).json({ message: 'Failed to update complaint', error: error.message });
+    }
+};
+
+export const getComplaintById = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const complaint = await prisma.complaint.findUnique({
+            where: { id },
+            include: {
+                student: true,
+                technician: true,
+                asset: true,
+                statusHistory: {
+                    orderBy: { timestamp: 'desc' }
+                }
+            }
+        });
+
+        if (!complaint) {
+            return res.status(404).json({ message: 'Complaint not found' });
+        }
+
+        res.json(complaint);
+    } catch (error: any) {
+        console.error('Get complaint error:', error);
+        res.status(500).json({ message: 'Failed to fetch complaint', error: error.message });
     }
 };
 
 export const verifyOTP = async (req: Request, res: Response) => {
-    const { id } = req.params;
-    const { otp } = req.body;
-
     try {
-        const { data: complaint } = await supabase.from('complaints').select('*').eq('id', id).single();
-        if (!complaint) return res.status(404).json({ message: 'Complaint not found' });
+        const { id } = req.params;
+        const { otp } = req.body;
 
-        if (complaint.otp === otp) {
-            const { data: updated } = await supabase
-                .from('complaints')
-                .update({
-                    status: 'closed',
-                    otp_verified: true,
-                })
-                .eq('id', id)
-                .select()
-                .single();
+        const complaint = await prisma.complaint.findUnique({
+            where: { id }
+        });
 
-            await supabase
-                .from('assets')
-                .update({ status: 'operational' })
-                .eq('id', complaint.asset_id);
+        if (!complaint) {
+            return res.status(404).json({ message: 'Complaint not found' });
+        }
 
-            await notify(
-                complaint.student_id,
-                'complaint_closed',
-                'Complaint Closed',
-                `Your complaint has been successfully verified, closed, and asset marked as Operational.`,
-                complaint.id
+        if (complaint.otp !== otp) {
+            return res.status(400).json({ message: 'Invalid OTP' });
+        }
+
+        const updated = await prisma.complaint.update({
+            where: { id },
+            data: {
+                otpVerified: true,
+                status: 'closed'
+            }
+        });
+
+        res.json({ message: 'OTP verified successfully', complaint: updated });
+    } catch (error: any) {
+        console.error('Verify OTP error:', error);
+        res.status(500).json({ message: 'Failed to verify OTP', error: error.message });
+    }
+};
+export const handleApproval = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const { action, notes } = req.body; // action: 'accept' | 'reject'
+
+        if (action === 'reject') {
+            const complaint = await prisma.complaint.update({
+                where: { id },
+                data: {
+                    status: 'rejected',
+                    rejectionReason: notes
+                },
+                include: { student: true }
+            });
+
+            // Notify student
+            await createNotification(
+                complaint.studentId,
+                'Complaint Rejected',
+                `Your complaint was rejected: ${notes}`,
+                'complaint_rejected',
+                id
             );
 
-            res.json({ message: 'Complaint verified and closed', complaint: toCamelCase(updated) });
-        } else {
-            res.status(400).json({ message: 'Invalid OTP' });
+            return res.json(complaint);
+        } else if (action === 'accept') {
+            const complaint = await prisma.complaint.update({
+                where: { id },
+                data: {
+                    status: 'assigned',
+                },
+                include: { student: true }
+            });
+
+            // Update Asset Status to 'under_maintenance'
+            await prisma.asset.update({
+                where: { id: complaint.assetId },
+                data: { status: 'under_maintenance' }
+            });
+
+            // Create notification for student
+            await createNotification(
+                complaint.studentId,
+                'Complaint Approved',
+                'Your complaint has been approved and matches our maintenance criteria. A technician will be assigned shortly.',
+                'complaint_approved',
+                id
+            );
+
+            return res.json(complaint);
         }
+
+        res.status(400).json({ message: 'Invalid action' });
     } catch (error: any) {
-        res.status(500).json({ message: 'Verification failed', error: error.message });
-    }
-};
-
-export const getAnalytics = async (req: Request, res: Response) => {
-    try {
-        const analytics = await queries.getAdminAnalytics();
-        res.json(analytics);
-    } catch (error: any) {
-        res.status(500).json({ message: 'Failed to fetch analytics', error: error.message });
-    }
-};
-
-export const getStudentComplaints = async (req: Request, res: Response) => {
-    const studentId = (req as any).user.id;
-    try {
-        const result = await queries.getStudentDashboard(studentId);
-        res.json(result.complaints);
-    } catch (error: any) {
-        res.status(500).json({ message: 'Failed to fetch complaints', error: error.message });
-    }
-};
-
-export const getTechnicianComplaints = async (req: Request, res: Response) => {
-    const technicianId = (req as any).user.id;
-    try {
-        const result = await queries.getTechnicianWorkload(technicianId);
-        res.json(result.complaints);
-    } catch (error: any) {
-        res.status(500).json({ message: 'Failed to fetch complaints', error: error.message });
-    }
-};
-
-export const getAllComplaints = async (req: Request, res: Response) => {
-    try {
-        const { data } = await supabase
-            .from('complaints')
-            .select(`
-                *,
-                asset:assets(*),
-                student:users!student_id(*),
-                technician:users!technician_id(*)
-            `)
-            .order('created_at', { ascending: false });
-
-        const transformed = (data || []).map((c: any) => ({
-            ...c,
-            images: c.images ? JSON.parse(c.images) : []
-        }));
-
-        res.json(toCamelCase(transformed));
-    } catch (error: any) {
-        res.status(500).json({ message: 'Failed to fetch complaints', error: error.message });
+        console.error('Approval error:', error);
+        res.status(500).json({ message: 'Approval failed', error: error.message });
     }
 };

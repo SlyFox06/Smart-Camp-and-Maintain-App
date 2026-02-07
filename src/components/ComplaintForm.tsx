@@ -161,6 +161,22 @@ const ComplaintForm = ({ onClose, prefilledAssetId }: ComplaintFormProps) => {
                 </div>
 
                 <form onSubmit={handleSubmit} className="p-6 space-y-6">
+                    {/* Active Complaint Warning */}
+                    {activeComplaint && (
+                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                            <h3 className="font-bold text-yellow-800 flex items-center gap-2">
+                                <AlertCircle className="w-5 h-5" />
+                                Complaint Already Active
+                            </h3>
+                            <p className="text-yellow-700 mt-1">
+                                This asset is currently under review or maintenance. A complaint ("{activeComplaint.title}") is already being processed.
+                            </p>
+                            <p className="text-sm text-yellow-600 mt-2">
+                                Status: <span className="font-semibold uppercase">{activeComplaint.status.replace('_', ' ')}</span>
+                            </p>
+                        </div>
+                    )}
+
                     {/* Error Message */}
                     {error && (
                         <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
@@ -364,7 +380,7 @@ const ComplaintForm = ({ onClose, prefilledAssetId }: ComplaintFormProps) => {
                         </button>
                         <button
                             type="submit"
-                            disabled={isSubmitting}
+                            disabled={isSubmitting || !!activeComplaint}
                             className="flex-1 btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             {isSubmitting ? (

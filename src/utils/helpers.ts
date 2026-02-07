@@ -7,14 +7,19 @@ export const generateOTP = (): string => {
 };
 
 // Format date to readable string
-export const formatDate = (date: Date): string => {
-    return new Intl.DateTimeFormat('en-IN', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-    }).format(new Date(date));
+export const formatDate = (date: Date | string | null | undefined): string => {
+    if (!date) return 'N/A';
+    try {
+        return new Intl.DateTimeFormat('en-IN', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        }).format(new Date(date));
+    } catch (e) {
+        return 'Invalid Date';
+    }
 };
 
 // Calculate time difference
@@ -38,7 +43,8 @@ export const getStatusColor = (status: ComplaintStatus): string => {
         assigned: 'bg-yellow-500',
         in_progress: 'bg-orange-500',
         resolved: 'bg-green-500',
-        closed: 'bg-gray-500'
+        closed: 'bg-gray-500',
+        rejected: 'bg-red-500'
     };
     return colors[status] || 'bg-gray-500';
 };
@@ -61,7 +67,8 @@ export const getStatusBadgeStyle = (status: ComplaintStatus): string => {
         assigned: 'bg-yellow-100 text-yellow-800 border-yellow-200',
         in_progress: 'bg-orange-100 text-orange-800 border-orange-200',
         resolved: 'bg-green-100 text-green-800 border-green-200',
-        closed: 'bg-gray-100 text-gray-800 border-gray-200'
+        closed: 'bg-gray-100 text-gray-800 border-gray-200',
+        rejected: 'bg-red-100 text-red-800 border-red-200'
     };
     return styles[status] || 'bg-gray-100 text-gray-800';
 };

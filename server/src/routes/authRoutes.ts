@@ -2,9 +2,9 @@ import { Router } from 'express';
 import {
     register,
     login,
+    changePassword,
     createUser,
-    createTechnician,
-    changePassword
+    createTechnician
 } from '../controllers/authController';
 import { authenticate, authorize } from '../middleware/auth';
 

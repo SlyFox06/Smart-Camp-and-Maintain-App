@@ -23,6 +23,23 @@ const ComplaintDetails = ({ complaint, onClose }: ComplaintDetailsProps) => {
     const isAdmin = user?.role === 'admin';
     const isStudent = user?.role === 'student';
 
+    // Safe Data Handling
+    const statusHistory = complaint.statusHistory || [];
+    const rawImages = complaint.images as any;
+    const images = (() => {
+        if (Array.isArray(rawImages)) return rawImages;
+        if (typeof rawImages === 'string') {
+            try {
+                const parsed = JSON.parse(rawImages);
+                if (Array.isArray(parsed)) return parsed;
+                return [rawImages];
+            } catch {
+                return rawImages.length > 0 ? [rawImages] : [];
+            }
+        }
+        return [];
+    })();
+
     // Approval Logic
     const [isProcessing, setIsProcessing] = useState(false);
     const [rejectionReason, setRejectionReason] = useState('');
@@ -116,11 +133,11 @@ const ComplaintDetails = ({ complaint, onClose }: ComplaintDetailsProps) => {
                     {/* Status and Severity */}
                     <div className="flex flex-wrap gap-3">
                         <span className={`px-4 py-2 rounded-full text-sm font-bold shadow-lg ${complaint.status === 'reported' ? 'bg-blue-500 text-white' :
-                                complaint.status === 'assigned' ? 'bg-yellow-500 text-white' :
-                                    complaint.status === 'in_progress' ? 'bg-orange-500 text-white' :
-                                        complaint.status === 'resolved' ? 'bg-green-500 text-white' :
-                                            complaint.status === 'rejected' ? 'bg-red-600 text-white' :
-                                                'bg-gray-500 text-white'
+                            complaint.status === 'assigned' ? 'bg-yellow-500 text-white' :
+                                complaint.status === 'in_progress' ? 'bg-orange-500 text-white' :
+                                    complaint.status === 'resolved' ? 'bg-green-500 text-white' :
+                                        complaint.status === 'rejected' ? 'bg-red-600 text-white' :
+                                            'bg-gray-500 text-white'
                             }`}>
                             {complaint.status.replace('_', ' ').toUpperCase()}
                         </span>
@@ -239,14 +256,14 @@ const ComplaintDetails = ({ complaint, onClose }: ComplaintDetailsProps) => {
                     </div>
 
                     {/* Images */}
-                    {complaint.images && complaint.images.length > 0 && (
+                    {images.length > 0 && (
                         <div className="bg-white rounded-xl p-6 border-2 border-purple-200">
                             <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2 text-lg">
                                 <ImageIcon className="w-5 h-5 text-purple-600" />
                                 Attached Images ({complaint.images.length})
                             </h3>
                             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                                {complaint.images.map((image, index) => (
+                                {images.map((image, index) => (
                                     <img
                                         key={index}
                                         src={image}
@@ -347,18 +364,18 @@ const ComplaintDetails = ({ complaint, onClose }: ComplaintDetailsProps) => {
                             Status Timeline
                         </h3>
                         <div className="space-y-4">
-                            {complaint.statusHistory.map((update, index) => (
+                            {statusHistory.map((update, index) => (
                                 <div key={index} className="flex gap-4">
                                     <div className="flex flex-col items-center">
-                                        <div className={`w-3 h-3 rounded-full ${index === complaint.statusHistory.length - 1 ? 'bg-blue-500' : 'bg-gray-300'
+                                        <div className={`w-3 h-3 rounded-full ${index === statusHistory.length - 1 ? 'bg-blue-500' : 'bg-gray-300'
                                             }`}></div>
-                                        {index < complaint.statusHistory.length - 1 && (
+                                        {index < statusHistory.length - 1 && (
                                             <div className="w-0.5 h-full bg-gray-300 my-1"></div>
                                         )}
                                     </div>
                                     <div className="flex-1 pb-4">
                                         <div className="flex items-center gap-2 mb-1">
-                                            <span className={`text-sm font-semibold ${index === complaint.statusHistory.length - 1 ? 'text-blue-600' : 'text-gray-600'
+                                            <span className={`text-sm font-semibold ${index === statusHistory.length - 1 ? 'text-blue-600' : 'text-gray-600'
                                                 }`}>
                                                 {update.status.replace('_', ' ').toUpperCase()}
                                             </span>
@@ -457,7 +474,7 @@ const ComplaintDetails = ({ complaint, onClose }: ComplaintDetailsProps) => {
                     )}
                 </div>
             </div>
-        </div>
+        </div >
     );
 };
 
