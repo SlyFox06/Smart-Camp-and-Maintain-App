@@ -101,7 +101,7 @@ export const getAssignedComplaints = async (req: Request, res: Response) => {
 
 export const assignComplaint = async (req: Request, res: Response) => {
     try {
-        const { id } = req.params;
+        const { id } = req.params as { id: string };
         const { technicianId } = req.body;
 
         const complaint = await prisma.complaint.update({
@@ -162,7 +162,7 @@ export const assignComplaint = async (req: Request, res: Response) => {
 
 export const updateComplaintStatus = async (req: Request, res: Response) => {
     try {
-        const { id } = req.params;
+        const { id } = req.params as { id: string };
         const { status, message } = req.body;
 
         const complaint = await prisma.complaint.update({
@@ -212,7 +212,7 @@ export const updateComplaintStatus = async (req: Request, res: Response) => {
 
 export const getComplaintById = async (req: Request, res: Response) => {
     try {
-        const { id } = req.params;
+        const { id } = req.params as { id: string };
         const complaint = await prisma.complaint.findUnique({
             where: { id },
             include: {
@@ -238,7 +238,7 @@ export const getComplaintById = async (req: Request, res: Response) => {
 
 export const verifyOTP = async (req: Request, res: Response) => {
     try {
-        const { id } = req.params;
+        const { id } = req.params as { id: string };
         const { otp } = req.body;
 
         const complaint = await prisma.complaint.findUnique({
@@ -269,7 +269,7 @@ export const verifyOTP = async (req: Request, res: Response) => {
 };
 export const handleApproval = async (req: Request, res: Response) => {
     try {
-        const { id } = req.params;
+        const { id } = req.params as { id: string };
         const { action, notes } = req.body; // action: 'accept' | 'reject'
 
         if (action === 'reject') {

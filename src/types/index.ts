@@ -10,6 +10,12 @@ export interface User {
     department?: string;
     avatar?: string;
     requiresPasswordChange?: boolean;
+    isActive?: boolean;
+    technician?: {
+        skillType?: string;
+        assignedArea?: string;
+        isAvailable?: boolean;
+    };
 }
 
 // Asset Types

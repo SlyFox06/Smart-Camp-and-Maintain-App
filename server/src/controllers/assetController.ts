@@ -21,7 +21,7 @@ export const getAllAssets = async (req: Request, res: Response) => {
 
 export const getAssetById = async (req: Request, res: Response) => {
     try {
-        const { id } = req.params;
+        const { id } = req.params as { id: string };
         const asset = await prisma.asset.findUnique({
             where: { id },
             include: {
@@ -78,7 +78,7 @@ export const createAsset = async (req: Request, res: Response) => {
 
 export const updateAsset = async (req: Request, res: Response) => {
     try {
-        const { id } = req.params;
+        const { id } = req.params as { id: string };
         const updateData = req.body;
         const userId = (req as any).user?.id;
 
@@ -106,7 +106,7 @@ export const updateAsset = async (req: Request, res: Response) => {
 
 export const deleteAsset = async (req: Request, res: Response) => {
     try {
-        const { id } = req.params;
+        const { id } = req.params as { id: string };
         const userId = (req as any).user?.id;
 
         const asset = await prisma.asset.delete({
@@ -132,7 +132,7 @@ export const deleteAsset = async (req: Request, res: Response) => {
 
 export const getAssetByQR = async (req: Request, res: Response) => {
     try {
-        const { qrUrl } = req.params;
+        const { qrUrl } = req.params as { qrUrl: string };
         const asset = await prisma.asset.findFirst({
             where: { qrUrl }
         });
@@ -150,7 +150,7 @@ export const getAssetByQR = async (req: Request, res: Response) => {
 
 export const getActiveComplaint = async (req: Request, res: Response) => {
     try {
-        const { id } = req.params;
+        const { id } = req.params as { id: string };
         const complaint = await prisma.complaint.findFirst({
             where: {
                 assetId: id,

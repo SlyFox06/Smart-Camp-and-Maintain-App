@@ -139,7 +139,11 @@ export const getAllAssets = async (req: Request, res: Response) => {
 
 export const getAllUsers = async (req: Request, res: Response) => {
     try {
+        const { role } = req.query;
+        const where = role ? { role: String(role) } : {};
+
         const users = await prisma.user.findMany({
+            where,
             select: {
                 id: true,
                 name: true,
@@ -148,7 +152,15 @@ export const getAllUsers = async (req: Request, res: Response) => {
                 department: true,
                 phone: true,
                 avatar: true,
-                createdAt: true
+                isActive: true,
+                createdAt: true,
+                technician: {
+                    select: {
+                        skillType: true,
+                        assignedArea: true,
+                        isAvailable: true
+                    }
+                }
             },
             orderBy: { createdAt: 'desc' }
         });
@@ -160,9 +172,161 @@ export const getAllUsers = async (req: Request, res: Response) => {
     }
 };
 
+export const updateUser = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params as { id: string };
+        const { name, phone, department, skillType, assignedArea } = req.body;
+        const adminId = (req as any).user?.id;
+
+        // Update basic user details
+        const user = await prisma.user.update({
+            where: { id },
+            data: { name, phone, department }
+        });
+
+        // If technician, update technician details
+        if (user.role === 'technician' && (skillType || assignedArea)) {
+            await prisma.technician.update({
+                where: { userId: id },
+                data: {
+                    skillType,
+                    assignedArea
+                }
+            });
+        }
+
+        // Audit Log
+        if (adminId) {
+            await prisma.auditLog.create({
+                data: {
+                    userId: adminId,
+                    action: 'USER_UPDATE',
+                    details: `Updated user ${user.name} (${user.role})`
+                }
+            });
+        }
+
+        res.json(user);
+    } catch (error: any) {
+        console.error('Update user error:', error);
+        res.status(500).json({ message: 'Failed to update user', error: error.message });
+    }
+};
+
+export const toggleUserStatus = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params as { id: string };
+        const { isActive } = req.body;
+        const adminId = (req as any).user?.id;
+
+        const user = await prisma.user.update({
+            where: { id },
+            data: { isActive }
+        });
+
+        if (adminId) {
+            await prisma.auditLog.create({
+                data: {
+                    userId: adminId,
+                    action: 'USER_STATUS_CHANGE',
+                    details: `Changed ${user.name} status to ${isActive ? 'Active' : 'Inactive'}`
+                }
+            });
+        }
+
+        res.json(user);
+    } catch (error: any) {
+        console.error('Toggle status error:', error);
+        res.status(500).json({ message: 'Failed to update status', error: error.message });
+    }
+};
+
+export const searchGlobal = async (req: Request, res: Response) => {
+    try {
+        const { q } = req.query;
+        const query = String(q || '');
+
+        if (!query) return res.json({ users: [], complaints: [], assets: [] });
+
+        const [users, complaints, assets] = await Promise.all([
+            prisma.user.findMany({
+                where: {
+                    OR: [
+                        { name: { contains: query, mode: 'insensitive' } },
+                        { email: { contains: query, mode: 'insensitive' } }
+                    ]
+                },
+                take: 5
+            }),
+            prisma.complaint.findMany({
+                where: {
+                    OR: [
+                        { title: { contains: query, mode: 'insensitive' } },
+                        { description: { contains: query, mode: 'insensitive' } }
+                    ]
+                },
+                take: 5,
+                include: { student: true, asset: true }
+            }),
+            prisma.asset.findMany({
+                where: {
+                    OR: [
+                        { name: { contains: query, mode: 'insensitive' } },
+                        { building: { contains: query, mode: 'insensitive' } }
+                    ]
+                },
+                take: 5
+            })
+        ]);
+
+        res.json({ users, complaints, assets });
+    } catch (error: any) {
+        console.error('Global search error:', error);
+        res.status(500).json({ message: 'Search failed', error: error.message });
+    }
+};
+
+export const searchComplaints = async (req: Request, res: Response) => {
+    try {
+        const { q, status, student, technician, asset } = req.query;
+        const query = String(q || '');
+
+        const where: any = {};
+
+        if (query) {
+            where.OR = [
+                { title: { contains: query, mode: 'insensitive' } },
+                { description: { contains: query, mode: 'insensitive' } },
+                { id: { equals: query } } // Exact match for ID
+            ];
+        }
+
+        if (status) where.status = String(status);
+        if (student) where.student = { name: { contains: String(student), mode: 'insensitive' } };
+        if (technician) where.technician = { name: { contains: String(technician), mode: 'insensitive' } };
+        if (asset) where.asset = { name: { contains: String(asset), mode: 'insensitive' } };
+
+        const complaints = await prisma.complaint.findMany({
+            where,
+            include: {
+                student: true,
+                technician: true,
+                asset: true,
+                statusHistory: { orderBy: { timestamp: 'desc' } }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+
+        res.json(complaints);
+    } catch (error: any) {
+        console.error('Complaint search error:', error);
+        res.status(500).json({ message: 'Search failed', error: error.message });
+    }
+};
+
 export const getComplaintById = async (req: Request, res: Response) => {
     try {
-        const { id } = req.params;
+        const { id } = req.params as { id: string };
         const complaint = await prisma.complaint.findUnique({
             where: { id },
             include: {
@@ -210,12 +374,16 @@ export const getAnalytics = async (req: Request, res: Response) => {
         ]);
 
         const complaintsByStatus = byStatus.reduce((acc, curr) => {
-            acc[curr.status] = curr._count;
+            if (curr.status) {
+                acc[curr.status] = curr._count;
+            }
             return acc;
         }, {} as Record<string, number>);
 
         const complaintsBySeverity = bySeverity.reduce((acc, curr) => {
-            acc[curr.severity] = curr._count;
+            if (curr.severity) {
+                acc[curr.severity] = curr._count;
+            }
             return acc;
         }, {} as Record<string, number>);
 
