@@ -7,9 +7,9 @@ const getBaseUrl = () => {
     }
 
     // Development Environment:
-    // If running on localhost, point to local python/node server
-    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-        return 'http://localhost:5000/api';
+    // If running on local network (or localhost), point to the same host on port 5000
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.hostname.match(/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/)) {
+        return `http://${window.location.hostname}:5000/api`;
     }
 
     // Fallback? (Maybe remove this or make it safer)

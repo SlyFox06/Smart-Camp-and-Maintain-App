@@ -76,3 +76,6 @@ npm uninstall prisma @prisma/client
 rm -rf prisma
 rm src/db/prisma.ts
 ```
+
+
+Atharv@2005!
