@@ -123,9 +123,17 @@ const ComplaintForm = ({ onClose, prefilledAssetId }: ComplaintFormProps) => {
         setIsSubmitting(true);
 
         try {
-            // For now, we simulate image upload to Cloudinary and just send placeholder URLs
-            // In a real app, we'd use a FormData object or upload images first
-            const imageUrls = images.map((_, i) => `https://api.dicebear.com/7.x/pixel-art/svg?seed=img${i + Date.now()}`);
+            // Convert images to Base64
+            const convertToBase64 = (file: File): Promise<string> => {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.readAsDataURL(file);
+                    reader.onload = () => resolve(reader.result as string);
+                    reader.onerror = error => reject(error);
+                });
+            };
+
+            const imageUrls = await Promise.all(images.map(image => convertToBase64(image)));
 
             await api.post('/complaints', {
                 assetId,

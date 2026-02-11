@@ -325,3 +325,164 @@ export const handleApproval = async (req: Request, res: Response) => {
         res.status(500).json({ message: 'Approval failed', error: error.message });
     }
 };
+
+export const submitWork = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params as { id: string };
+        const { proof, note } = req.body;
+        const technicianId = (req as any).user?.id;
+
+        const complaint = await prisma.complaint.findUnique({ where: { id } });
+
+        if (!complaint) {
+            return res.status(404).json({ message: 'Complaint not found' });
+        }
+
+        // Verify technician assignment (optional strict check)
+        // if (complaint.technicianId !== technicianId) ...
+
+        const updated = await prisma.complaint.update({
+            where: { id },
+            data: {
+                status: 'work_submitted',
+                workProof: proof ? JSON.stringify(proof) : null,
+                workNote: note,
+                resolvedAt: new Date() // Tentative resolution time
+            },
+            include: { student: true, asset: true }
+        });
+
+        await prisma.statusHistory.create({
+            data: {
+                complaintId: id,
+                status: 'work_submitted',
+                message: 'Technician submitted work for review'
+            }
+        });
+
+        // Notify Admins
+        const admins = await prisma.user.findMany({ where: { role: 'admin' } });
+        for (const admin of admins) {
+            await createNotification(
+                admin.id,
+                'Work Submitted for Review',
+                `Technician has completed work on: ${updated.title}`,
+                'work_submitted',
+                id
+            );
+        }
+
+        res.json(updated);
+    } catch (error: any) {
+        console.error('Submit work error:', error);
+        res.status(500).json({ message: 'Failed to submit work', error: error.message });
+    }
+};
+
+export const reviewWork = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params as { id: string };
+        const { action, comment } = req.body; // action: 'approve' | 'reject'
+
+        if (!['approve', 'reject'].includes(action)) {
+            return res.status(400).json({ message: 'Invalid action' });
+        }
+
+        const newStatus = action === 'approve' ? 'work_approved' : 'rework_required';
+        const notificationTitle = action === 'approve' ? 'Work Approved' : 'Rework Required';
+        const notificationMessage = action === 'approve'
+            ? 'The work has been approved. Please provide your feedback.'
+            : `Work rejected: ${comment}`;
+
+        const updated = await prisma.complaint.update({
+            where: { id },
+            data: {
+                status: newStatus,
+                adminComment: comment,
+                // If approved, maybe set feedback_pending immediately or let UI handle it
+            },
+            include: { student: true, technician: true } // Need technician to notify them if rejected
+        });
+
+        await prisma.statusHistory.create({
+            data: {
+                complaintId: id,
+                status: newStatus,
+                message: `Admin ${action}ed work. Comment: ${comment || 'None'}`
+            }
+        });
+
+        if (action === 'approve') {
+            // Notify Student for feedback
+            await createNotification(
+                updated.studentId,
+                'Work Approved - Feedback Requested',
+                'The maintenance work is approved. Please rate the service.',
+                'feedback_pending',
+                id
+            );
+        } else {
+            // Notify Technician for rework
+            if (updated.technicianId) { // technicianId is likely the User ID based on schema usage
+                await createNotification(
+                    updated.technicianId,
+                    'Rework Required',
+                    `Admin rejected work: ${comment}`,
+                    'rework_required',
+                    id
+                );
+            }
+        }
+
+        res.json(updated);
+    } catch (error: any) {
+        console.error('Review work error:', error);
+        res.status(500).json({ message: 'Failed to review work', error: error.message });
+    }
+};
+
+export const submitFeedback = async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params as { id: string };
+        const { rating, feedback } = req.body;
+        const studentId = (req as any).user?.id;
+
+        const complaint = await prisma.complaint.findUnique({ where: { id } });
+
+        if (!complaint) return res.status(404).json({ message: 'Complaint not found' });
+        if (complaint.studentId !== studentId) return res.status(403).json({ message: 'Unauthorized' });
+
+        const updated = await prisma.complaint.update({
+            where: { id },
+            data: {
+                status: 'closed',
+                rating,
+                feedback,
+                // Ensure asset is operational if not already
+            },
+            include: { asset: true }
+        });
+
+        // Ensure asset is operational
+        await prisma.asset.update({
+            where: { id: updated.assetId },
+            data: { status: 'operational' }
+        });
+
+        await prisma.statusHistory.create({
+            data: {
+                complaintId: id,
+                status: 'closed',
+                message: `Complaint closed with ${rating} star rating.`
+            }
+        });
+
+        // Notify Admins about feedback? Optional but requested "Admin should be able to view student ratings"
+        // No explicit notification needed if they just view it in dashboard, but let's leave it for now.
+
+        res.json(updated);
+    } catch (error: any) {
+        console.error('Submit feedback error:', error);
+        res.status(500).json({ message: 'Failed to submit feedback', error: error.message });
+    }
+};

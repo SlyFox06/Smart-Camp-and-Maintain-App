@@ -16,11 +16,8 @@ const QRScanner = ({ onClose }: QRScannerProps) => {
 
     useEffect(() => {
         const initializeScanner = async () => {
-            // 1. Check for Secure Context (Required for Camera on Mobile)
-            if (!window.isSecureContext && window.location.hostname !== 'localhost') {
-                setScanError('Camera access requires a Secure Context (HTTPS). On mobile, standard HTTP only works for localhost.');
-                return;
-            }
+            // Check removed to allow browser to handle permission request directly
+
 
             // 2. Check for Camera Hardware
             const hasCamera = await QrScanner.hasCamera();

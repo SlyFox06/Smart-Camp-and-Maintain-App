@@ -58,6 +58,11 @@ model Complaint {
   severity        String?         @default("medium") @db.VarChar(50)
   images          String?
   video           String?
+  workProof       String?         @map("work_proof") // Images uploaded by technician
+  workNote        String?         @map("work_note") // Description by technician
+  adminComment    String?         @map("admin_comment") // Reason for rejection or approval note
+  feedback        String? // Student feedback
+  rating          Int? // Student rating (1-5) 
   otp             String?         @db.VarChar(10)
   otpVerified     Boolean?        @default(false) @map("otp_verified")
   rejectionReason String?         @map("rejection_reason")

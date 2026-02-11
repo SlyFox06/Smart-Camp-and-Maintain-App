@@ -27,7 +27,7 @@ const StudentDashboard = ({ prefilledAssetId, autoOpenForm }: StudentDashboardPr
     useEffect(() => {
         const fetchComplaints = async () => {
             try {
-                const response = await api.get('/complaints/student');
+                const response = await api.get('/complaints/my-complaints');
                 setComplaints(response.data);
             } catch (error) {
                 console.error('Failed to fetch complaints', error);

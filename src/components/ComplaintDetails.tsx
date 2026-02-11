@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { X, MapPin, Calendar, User, Wrench, Clock, CheckCircle, Image as ImageIcon, AlertCircle, Edit, Save } from 'lucide-react';
+import { X, MapPin, Calendar, User, Wrench, Clock, CheckCircle, Image as ImageIcon, AlertCircle, Edit, Save, Star } from 'lucide-react';
+import StatusTimeline from './StatusTimeline';
 import type { Complaint } from '../types';
 import api from '../services/api';
 import { formatDate, getTimeDifference, formatResolutionTime, calculateResolutionTime } from '../utils/helpers';
@@ -22,6 +23,20 @@ const ComplaintDetails = ({ complaint, onClose }: ComplaintDetailsProps) => {
     const { user } = useAuth();
     const isAdmin = user?.role === 'admin';
     const isStudent = user?.role === 'student';
+    const isTechnician = user?.role === 'technician'; // Add technician check
+
+    // Work Submission (Technician)
+    // Work Submission (Technician)
+    const [proofImage, setProofImage] = useState<string>('');
+    const [workNote, setWorkNote] = useState('');
+
+    // Feedback (Student)
+    const [rating, setRating] = useState(0);
+    const [feedbackText, setFeedbackText] = useState('');
+
+    // Admin Review (Already has general logic, adapting)
+    const [adminComment, setAdminComment] = useState('');
+
 
     // Safe Data Handling
     const statusHistory = complaint.statusHistory || [];
@@ -112,6 +127,41 @@ const ComplaintDetails = ({ complaint, onClose }: ComplaintDetailsProps) => {
         }, 1500);
     };
 
+    // New Handlers
+    const submitWork = async () => {
+        if (!proofImage) return alert('Please upload a proof image');
+        try {
+            await api.post(`/complaints/${complaint.id}/work-submit`, { proof: [proofImage], note: workNote });
+            alert('Work submitted successfully');
+            onClose();
+        } catch (e) { console.error(e); alert('Failed to submit work'); }
+    };
+
+    const reviewWork = async (action: 'approve' | 'reject') => {
+        if (action === 'reject' && !adminComment) return alert('Comment required for rejection');
+        try {
+            await api.post(`/complaints/${complaint.id}/work-review`, { action, comment: adminComment });
+            alert(`Work ${action}d`);
+            onClose();
+        } catch (e) { console.error(e); alert('Review failed'); }
+    };
+
+    const submitFeedback = async () => {
+        if (rating === 0) return alert('Please select a rating');
+        try {
+            await api.post(`/complaints/${complaint.id}/feedback`, { rating, feedback: feedbackText });
+            alert('bFeedback submitted & Complaint Closed');
+            onClose();
+        } catch (e) { console.error(e); alert('Failed to submit feedback'); }
+    };
+
+    // Helper for Work Proof Images
+    const workProofImages = (() => {
+        if (!complaint.workProof) return [];
+        try { return JSON.parse(complaint.workProof); } catch { return [complaint.workProof]; }
+    })();
+
+
     return (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-50 p-4 overflow-y-auto">
             <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full my-8 max-h-[90vh] overflow-y-auto">
@@ -139,8 +189,14 @@ const ComplaintDetails = ({ complaint, onClose }: ComplaintDetailsProps) => {
                                         complaint.status === 'rejected' ? 'bg-red-600 text-white' :
                                             'bg-gray-500 text-white'
                             }`}>
-                            {complaint.status.replace('_', ' ').toUpperCase()}
+                            {complaint.status.replace(/_/g, ' ').toUpperCase()}
                         </span>
+
+                        {/* Timeline */}
+                        <div className="w-full mt-6 mb-4">
+                            <StatusTimeline status={complaint.status} />
+                        </div>
+
                         <div className="flex items-center gap-2">
                             {isEditingPriority ? (
                                 <div className="flex items-center gap-2 bg-white rounded-lg border border-gray-200 p-1 shadow-sm">
@@ -260,7 +316,7 @@ const ComplaintDetails = ({ complaint, onClose }: ComplaintDetailsProps) => {
                         <div className="bg-white rounded-xl p-6 border-2 border-purple-200">
                             <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2 text-lg">
                                 <ImageIcon className="w-5 h-5 text-purple-600" />
-                                Attached Images ({complaint.images.length})
+                                Attached Images ({images.length})
                             </h3>
                             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                                 {images.map((image, index) => (
@@ -392,7 +448,108 @@ const ComplaintDetails = ({ complaint, onClose }: ComplaintDetailsProps) => {
                         </div>
                     </div>
 
-                    {/* Location */}
+                    {/* NEW: Technician Work Submission */}
+                    {isTechnician && (complaint.status === 'assigned' || complaint.status === 'rework_required') && (
+                        <div className="bg-orange-50 border border-orange-200 rounded-xl p-6">
+                            <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
+                                <Wrench className="w-5 h-5 text-orange-600" />
+                                Submit Work Completion
+                            </h3>
+                            {complaint.status === 'rework_required' && (
+                                <div className="bg-red-100 text-red-700 p-3 rounded mb-4 text-sm">
+                                    <strong>Rework Required:</strong> {complaint.adminComment}
+                                </div>
+                            )}
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 mb-2">Upload Proof Image (Max 5MB)</label>
+                                    <input
+                                        type="file"
+                                        accept="image/*"
+                                        className="w-full p-2 border rounded bg-white"
+                                        onChange={(e) => {
+                                            const file = e.target.files?.[0];
+                                            if (file) {
+                                                const reader = new FileReader();
+                                                reader.onloadend = () => {
+                                                    setProofImage(reader.result as string);
+                                                };
+                                                reader.readAsDataURL(file);
+                                            }
+                                        }}
+                                    />
+                                    {proofImage && (
+                                        <img src={proofImage} alt="Proof Preview" className="mt-2 h-32 rounded border bg-white" />
+                                    )}
+                                </div>
+                                <textarea
+                                    placeholder="Work Notes..."
+                                    className="w-full p-2 border rounded"
+                                    value={workNote}
+                                    onChange={e => setWorkNote(e.target.value)}
+                                />
+                                <button onClick={submitWork} className="bg-orange-600 text-white px-4 py-2 rounded hover:bg-orange-700 w-full font-semibold shadow-md">
+                                    Submit Work
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* NEW: Admin Work Review */}
+                    {isAdmin && complaint.status === 'work_submitted' && (
+                        <div className="bg-purple-50 border border-purple-200 rounded-xl p-6">
+                            <h3 className="font-bold text-gray-900 mb-4">Review Work</h3>
+                            <div className="mb-4">
+                                <p className="font-semibold">Technician Note:</p>
+                                <p className="text-gray-700 italic">{complaint.workNote || 'No notes'}</p>
+                            </div>
+                            {workProofImages.length > 0 && (
+                                <div className="mb-4">
+                                    <p className="font-semibold mb-2">Proof:</p>
+                                    <img src={workProofImages[0]} alt="Work Proof" className="h-40 rounded border" />
+                                </div>
+                            )}
+                            <div className="space-y-3">
+                                <textarea
+                                    placeholder="Admin Comment (Required for rejection)"
+                                    className="w-full p-2 border rounded"
+                                    value={adminComment}
+                                    onChange={e => setAdminComment(e.target.value)}
+                                />
+                                <div className="flex gap-4">
+                                    <button onClick={() => reviewWork('approve')} className="flex-1 bg-green-600 text-white py-2 rounded">Approve</button>
+                                    <button onClick={() => reviewWork('reject')} className="flex-1 bg-red-600 text-white py-2 rounded">Reject</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* NEW: Student Feedback */}
+                    {isStudent && (complaint.status === 'work_approved' || complaint.status === 'feedback_pending') && (
+                        <div className="bg-green-50 border border-green-200 rounded-xl p-6 text-center">
+                            <h3 className="font-bold text-gray-900 mb-2">Work Completed!</h3>
+                            <p className="mb-4 text-sm text-gray-600">The admin has approved the work. Please rate the service to close the complaint.</p>
+                            <div className="flex justify-center gap-2 mb-4">
+                                {[1, 2, 3, 4, 5].map((star) => (
+                                    <Star
+                                        key={star}
+                                        className={`w-8 h-8 cursor-pointer ${star <= rating ? 'fill-yellow-400 text-yellow-500' : 'text-gray-300'}`}
+                                        onClick={() => setRating(star)}
+                                    />
+                                ))}
+                            </div>
+                            <textarea
+                                placeholder="Any feedback? (Optional)"
+                                className="w-full p-2 border rounded mb-4"
+                                value={feedbackText}
+                                onChange={e => setFeedbackText(e.target.value)}
+                            />
+                            <button onClick={submitFeedback} className="bg-green-600 text-white px-6 py-2 rounded-full font-bold hover:bg-green-700">
+                                Submit Feedback & Close
+                            </button>
+                        </div>
+                    )}
+
                     {complaint.asset && (
                         <div className="bg-white border border-gray-200 rounded-xl p-6">
                             <div className="flex items-center gap-2 mb-3">
