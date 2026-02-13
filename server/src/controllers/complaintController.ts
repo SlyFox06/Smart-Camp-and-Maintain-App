@@ -19,6 +19,36 @@ export const createComplaint = async (req: Request, res: Response) => {
             return res.status(400).json({ message: 'This asset already has an active complaint.' });
         }
 
+        // Get asset details to determine required skill
+        const asset = await prisma.asset.findUnique({
+            where: { id: assetId }
+        });
+
+        if (!asset) {
+            return res.status(404).json({ message: 'Asset not found' });
+        }
+
+        // Determine required skill based on asset type
+        const requiredSkill = getSkillForAssetType(asset.type);
+
+        // Find available technician with matching skill
+        const availableTechnician = await prisma.technician.findFirst({
+            where: {
+                skill: requiredSkill,
+                isAvailable: true,
+                user: {
+                    isActive: true
+                }
+            },
+            include: {
+                user: true
+            },
+            orderBy: {
+                lastAvailabilityUpdate: 'asc' // Assign to technician who has been available longest
+            }
+        });
+
+        // Create complaint with auto-assignment if technician found
         const complaint = await prisma.complaint.create({
             data: {
                 title,
@@ -30,25 +60,76 @@ export const createComplaint = async (req: Request, res: Response) => {
                 video,
                 assetId,
                 studentId,
-                status: 'reported'
+                status: availableTechnician ? 'assigned' : 'reported',
+                technicianId: availableTechnician?.userId || null,
+                assignedAt: availableTechnician ? new Date() : null
             },
             include: {
                 asset: true,
-                student: true
+                student: true,
+                technician: {
+                    include: {
+                        user: true
+                    }
+                }
             }
         });
 
-        // Create notification for admins
-        const admins = await prisma.user.findMany({
-            where: { role: 'admin' }
-        });
+        // Update asset status to under maintenance if assigned
+        if (availableTechnician) {
+            await prisma.asset.update({
+                where: { id: assetId },
+                data: { status: 'under_maintenance' }
+            });
 
-        for (const admin of admins) {
+            // Add status history
+            await prisma.statusHistory.create({
+                data: {
+                    complaintId: complaint.id,
+                    status: 'assigned',
+                    message: `Auto-assigned to ${availableTechnician.user.name} (${requiredSkill})`
+                }
+            });
+
+            // Notify technician
             await createNotification(
-                admin.id,
-                'New Complaint Reported',
-                `${complaint.student.name} reported: ${title}`,
-                'new_complaint',
+                availableTechnician.userId,
+                'New Complaint Assigned',
+                `You have been auto-assigned: ${title}`,
+                'complaint_assigned',
+                complaint.id
+            );
+
+            // Notify student about assignment
+            await createNotification(
+                studentId,
+                'Complaint Assigned',
+                `Your complaint has been assigned to ${availableTechnician.user.name}`,
+                'complaint_assigned',
+                complaint.id
+            );
+        } else {
+            // No available technician - notify admins
+            const admins = await prisma.user.findMany({
+                where: { role: 'admin' }
+            });
+
+            for (const admin of admins) {
+                await createNotification(
+                    admin.id,
+                    'New Complaint - No Available Technician',
+                    `${complaint.student.name} reported: ${title}. No ${requiredSkill} technician available.`,
+                    'new_complaint',
+                    complaint.id
+                );
+            }
+
+            // Notify student that complaint is pending
+            await createNotification(
+                studentId,
+                'Complaint Received',
+                `Your complaint has been registered. We'll assign a technician as soon as one becomes available.`,
+                'complaint_status',
                 complaint.id
             );
         }

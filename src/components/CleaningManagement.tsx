@@ -1,7 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Sparkles, Users, Calendar, CheckCircle, Clock, AlertCircle, UserCheck, UserX, Plus, RefreshCw, AlertTriangle, QrCode as QrIcon, Printer } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-import QRCode from 'react-qr-code';
+import { Sparkles, Users, Calendar, CheckCircle, Clock, AlertCircle, UserCheck, UserX, Plus, RefreshCw } from 'lucide-react';
 import api from '../services/api';
 
 interface Cleaner {
@@ -56,9 +54,6 @@ const CleaningManagement = () => {
     const [selectedTask, setSelectedTask] = useState<CleaningTask | null>(null);
     const [selectedCleanerId, setSelectedCleanerId] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
-    const [showQRModal, setShowQRModal] = useState(false);
-
-    const navigate = useNavigate();
 
     useEffect(() => {
         fetchData();
@@ -148,20 +143,6 @@ const CleaningManagement = () => {
 
 
                 <div className="flex gap-3 flex-wrap">
-                    <button
-                        onClick={() => navigate('/sos')}
-                        className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all font-bold shadow-md animate-pulse"
-                    >
-                        <AlertTriangle className="w-4 h-4" />
-                        SOS
-                    </button>
-                    <button
-                        onClick={() => setShowQRModal(true)}
-                        className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-all font-medium shadow-sm"
-                    >
-                        <QrIcon className="w-4 h-4" />
-                        Emergency QR
-                    </button>
                     <input
                         type="date"
                         value={selectedDate}
@@ -407,61 +388,6 @@ const CleaningManagement = () => {
                 )
             }
 
-            {/* QR Code Modal for Cleaners */}
-            {
-                showQRModal && (
-                    <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-[100] p-4">
-                        <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden border border-gray-200 transform scale-100 transition-all">
-                            <div className="bg-gradient-to-r from-red-600 to-red-700 p-8 text-white text-center relative overflow-hidden">
-                                <div className="absolute top-0 left-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10"></div>
-                                <AlertTriangle className="w-16 h-16 mx-auto mb-4 animate-bounce" />
-                                <h2 className="text-3xl font-black uppercase tracking-widest text-white drop-shadow-md">Emergency SOS</h2>
-                                <p className="text-red-100 font-medium mt-2">Scan for Instant Help</p>
-                                <button
-                                    onClick={() => setShowQRModal(false)}
-                                    className="absolute top-4 right-4 text-white/80 hover:text-white bg-white/20 hover:bg-white/30 p-2 rounded-full transition-all"
-                                >
-                                    <UserX className="w-6 h-6 rotate-45" />
-                                </button>
-                            </div>
-
-                            <div className="p-10 flex flex-col items-center bg-gray-50">
-                                <div className="bg-white p-4 rounded-xl shadow-lg border-2 border-gray-200 mb-6">
-                                    <QRCode
-                                        value={`${window.location.origin}/sos`}
-                                        size={250}
-                                        level="H"
-                                        fgColor="#DC2626"
-                                    />
-                                </div>
-
-                                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 w-full mb-6">
-                                    <div className="flex items-start gap-3">
-                                        <div className="bg-blue-100 p-2 rounded-full">
-                                            <Users className="w-5 h-5 text-blue-600" />
-                                        </div>
-                                        <div>
-                                            <h4 className="font-bold text-gray-800">For Cleaning Staff Only</h4>
-                                            <p className="text-sm text-gray-600 mt-1">
-                                                Place this QR code in cleaning supplies rooms, restrooms, and corridors.
-                                                Staff can scan this to verify presence or report emergencies instantly.
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <button
-                                    onClick={() => window.print()}
-                                    className="w-full bg-gray-900 hover:bg-gray-800 text-white py-4 rounded-xl font-bold text-lg shadow-lg flex items-center justify-center gap-3 transition-all transform hover:-translate-y-1"
-                                >
-                                    <Printer className="w-6 h-6" />
-                                    Print SOS Poster
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                )
-            }
         </div >
     );
 };

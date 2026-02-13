@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { Plus, QrCode, Clock, CheckCircle, AlertCircle, Search, Filter, Home, LogOut } from 'lucide-react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
+import { Plus, QrCode, Clock, CheckCircle, AlertCircle, Search, Filter, Home, LogOut, AlertTriangle } from 'lucide-react';
 import type { Complaint, ComplaintStatus } from '../types';
 import api from '../services/api';
 import { useAuth } from '../hooks/useAuth';
@@ -18,6 +18,7 @@ interface HostelDashboardProps {
 const HostelDashboard = ({ prefilledAssetId, autoOpenForm }: HostelDashboardProps = {}) => {
     const { user: currentUser, logout } = useAuth();
     const [searchParams] = useSearchParams();
+    const navigate = useNavigate();
     const urlAssetId = searchParams.get('assetId'); // Get assetId from URL if exists
 
     // Prioritize prop, then URL param
@@ -101,6 +102,14 @@ const HostelDashboard = ({ prefilledAssetId, autoOpenForm }: HostelDashboardProp
                         </div>
                         <div className="flex flex-wrap gap-3 items-center justify-center w-full md:w-auto">
                             <NotificationBell />
+                            <button
+                                onClick={() => navigate('/sos')}
+                                className="relative flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold shadow-lg shadow-red-600/30 transition-all transform hover:scale-105 animate-pulse text-sm md:text-base border-2 border-red-400"
+                            >
+                                <AlertTriangle className="w-5 h-5 animate-bounce" />
+                                <span className="hidden sm:inline">EMERGENCY</span>
+                                <span className="sm:hidden">SOS</span>
+                            </button>
                             <button
                                 onClick={() => setShowQRScanner(true)}
                                 className="bg-white hover:bg-orange-50 text-orange-700 border border-orange-200 rounded-lg px-4 py-2 flex items-center gap-2 transition-all shadow-sm"

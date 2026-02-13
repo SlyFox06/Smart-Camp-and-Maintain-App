@@ -11,8 +11,13 @@ const EmergencySOS = () => {
     const [errorMessage, setErrorMessage] = useState('');
 
     useEffect(() => {
-        // Attempt to get location on mount
-        getCurrentLocation().then(setLocation).catch(console.error);
+        // Attempt to get location on mount, silently fail if not available
+        getCurrentLocation()
+            .then(setLocation)
+            .catch(() => {
+                // Silently fail - location will be reported as "unknown" if needed
+                // This prevents console errors while still allowing emergency reporting
+            });
     }, []);
 
     const handleEmergency = async (type: string) => {

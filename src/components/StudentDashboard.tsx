@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, QrCode, Clock, CheckCircle, AlertCircle, Search, Filter } from 'lucide-react';
+import { Plus, QrCode, Clock, CheckCircle, AlertCircle, Search, Filter, AlertTriangle } from 'lucide-react';
 import type { Complaint, ComplaintStatus } from '../types';
 import api from '../services/api';
 import { useAuth } from '../hooks/useAuth';
@@ -8,6 +8,7 @@ import ComplaintForm from './ComplaintForm';
 import ComplaintDetails from './ComplaintDetails';
 import QRScanner from './QRScanner';
 import NotificationBell from './common/NotificationBell';
+import { useNavigate } from 'react-router-dom';
 
 interface StudentDashboardProps {
     prefilledAssetId?: string;
@@ -18,6 +19,7 @@ interface StudentDashboardProps {
 
 const StudentDashboard = ({ prefilledAssetId, prefilledClassroomId, autoOpenForm, scope }: StudentDashboardProps = {}) => {
     const { user: currentUser, logout } = useAuth();
+    const navigate = useNavigate();
     const [complaints, setComplaints] = useState<Complaint[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [showComplaintForm, setShowComplaintForm] = useState(autoOpenForm || false);
@@ -94,6 +96,14 @@ const StudentDashboard = ({ prefilledAssetId, prefilledClassroomId, autoOpenForm
                         </div>
                         <div className="flex flex-wrap gap-3 items-center justify-center w-full md:w-auto">
                             <NotificationBell />
+                            <button
+                                onClick={() => navigate('/sos')}
+                                className="relative flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold shadow-lg shadow-red-600/30 transition-all transform hover:scale-105 animate-pulse text-sm md:text-base border-2 border-red-400"
+                            >
+                                <AlertTriangle className="w-5 h-5 animate-bounce" />
+                                <span className="hidden sm:inline">EMERGENCY</span>
+                                <span className="sm:hidden">SOS</span>
+                            </button>
                             <button
                                 onClick={() => setShowQRScanner(true)}
                                 className="btn-secondary flex items-center gap-2 px-4 py-2 text-sm md:text-base"

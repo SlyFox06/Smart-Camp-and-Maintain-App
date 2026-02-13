@@ -1,4 +1,4 @@
-import { QrCode, TrendingUp, Clock, CheckCircle } from 'lucide-react';
+import { QrCode, TrendingUp, Clock, CheckCircle, AlertTriangle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useEffect } from 'react';
@@ -25,80 +25,83 @@ const LandingPage = () => {
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 relative overflow-hidden">
-            {/* Animated Background Elements */}
-            <div className="absolute inset-0 overflow-hidden">
-                <div className="absolute -top-40 -right-40 w-80 h-80 bg-white/10 rounded-full blur-3xl animate-pulse"></div>
-                <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-white/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
-                <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-white/5 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s' }}></div>
-            </div>
-
-            <div className="relative z-10 container mx-auto px-4 py-12">
+        <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+            <div className="container mx-auto px-4 py-8">
                 {/* Header */}
-                <div className="text-center mb-16 animate-fade-in">
+                <div className="text-center mb-12 pt-8">
                     <div className="flex items-center justify-center mb-6">
-                        <div className="p-4 bg-white/20 backdrop-blur-lg rounded-2xl">
-                            <QrCode className="w-16 h-16 text-white" />
+                        <div className="p-4 bg-indigo-600 rounded-2xl shadow-lg">
+                            <QrCode className="w-12 h-12 text-white" />
                         </div>
                     </div>
-                    <h1 className="text-5xl md:text-6xl font-bold text-white mb-4 animate-slide-up">
+                    <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-3">
                         Smart Campus Maintenance
                     </h1>
-                    <p className="text-xl md:text-2xl text-white/90 mb-2">
+                    <p className="text-xl text-gray-700 mb-2">
                         AI-Powered Complaint Management System
                     </p>
-                    <p className="text-lg text-white/70 max-w-2xl mx-auto">
+                    <p className="text-base text-gray-600 max-w-2xl mx-auto mb-8">
                         Scan QR codes, report issues instantly, and track maintenance in real-time
                     </p>
-                    <div className="mt-8">
+
+                    {/* Action Buttons */}
+                    <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-8">
                         <button
                             onClick={handleLogin}
-                            className="bg-white text-indigo-600 px-10 py-4 rounded-full font-bold text-xl hover:bg-indigo-50 transition-all transform hover:scale-105 shadow-xl"
+                            className="bg-indigo-600 text-white px-8 py-3 rounded-lg font-semibold text-lg hover:bg-indigo-700 transition-colors shadow-md"
                         >
                             Login to Portal
+                        </button>
+
+                        <button
+                            onClick={() => navigate('/sos')}
+                            className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-8 py-3 rounded-lg font-semibold text-lg transition-colors shadow-md"
+                        >
+                            <AlertTriangle className="w-5 h-5" />
+                            Emergency SOS
                         </button>
                     </div>
                 </div>
 
                 {/* Stats */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-16 animate-slide-up" style={{ animationDelay: '0.2s' }}>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12 max-w-5xl mx-auto">
                     {stats.map((stat, index) => (
-                        <div key={index} className="glass-card p-6 text-center card-hover">
-                            <stat.icon className="w-8 h-8 text-white mx-auto mb-3" />
-                            <div className="text-2xl font-bold text-white mb-1">{stat.value}</div>
-                            <div className="text-sm text-white/70">{stat.label}</div>
+                        <div key={index} className="bg-white rounded-xl p-6 text-center shadow-md hover:shadow-lg transition-shadow">
+                            <stat.icon className="w-8 h-8 text-indigo-600 mx-auto mb-3" />
+                            <div className="text-2xl font-bold text-gray-900 mb-1">{stat.value}</div>
+                            <div className="text-sm text-gray-600">{stat.label}</div>
                         </div>
                     ))}
                 </div>
 
                 {/* Features Section */}
-                <div className="mt-20 glass-card p-8 md:p-12">
-                    <h2 className="text-3xl font-bold text-white text-center mb-12">Key Features</h2>
+                <div className="mt-12 bg-white rounded-2xl p-8 md:p-12 shadow-lg max-w-6xl mx-auto">
+                    <h2 className="text-3xl font-bold text-gray-900 text-center mb-10">Key Features</h2>
                     <div className="grid md:grid-cols-3 gap-8">
                         <div className="text-center">
-                            <div className="w-16 h-16 bg-gradient-to-r from-blue-400 to-cyan-400 rounded-full flex items-center justify-center mx-auto mb-4">
-                                <QrCode className="w-8 h-8 text-white" />
+                            <div className="w-16 h-16 bg-blue-100 rounded-xl flex items-center justify-center mx-auto mb-4">
+                                <QrCode className="w-8 h-8 text-blue-600" />
                             </div>
-                            <h3 className="text-xl font-semibold text-white mb-2">QR Code Integration</h3>
-                            <p className="text-white/70">
+                            <h3 className="text-xl font-semibold text-gray-900 mb-2">QR Code Integration</h3>
+                            <p className="text-gray-600">
                                 Scan asset QR codes for instant complaint registration with auto-filled details
                             </p>
                         </div>
                         <div className="text-center">
-                            <div className="w-16 h-16 bg-gradient-to-r from-green-400 to-emerald-400 rounded-full flex items-center justify-center mx-auto mb-4">
-                                <TrendingUp className="w-8 h-8 text-white" />
+                            <div className="w-16 h-16 bg-green-100 rounded-xl flex items-center justify-center mx-auto mb-4">
+                                <TrendingUp className="w-8 h-8 text-green-600" />
                             </div>
-                            <h3 className="text-xl font-semibold text-white mb-2">AI-Powered Analytics</h3>
-                            <p className="text-white/70">
+                            <h3 className="text-xl font-semibold text-gray-900 mb-2">AI-Powered Analytics</h3>
+                            <p className="text-gray-600">
                                 Smart severity classification and predictive maintenance insights
                             </p>
                         </div>
                         <div className="text-center">
-                            <div className="w-16 h-16 bg-gradient-to-r from-orange-400 to-red-400 rounded-full flex items-center justify-center mx-auto mb-4">
-                                <CheckCircle className="w-8 h-8 text-white" />
+                            <div className="w-16 h-16 bg-orange-100 rounded-xl flex items-center justify-center mx-auto mb-4">
+                                <CheckCircle className="w-8 h-8 text-orange-600" />
                             </div>
-                            <h3 className="text-xl font-semibold text-white mb-2">OTP Verification</h3>
-                            <p className="text-white/70">
+                            <h3 className="text-xl font-semibold text-gray-900 mb-2">OTP Verification</h3>
+                            <p className="text-gray-600">
                                 Secure complaint closure with student verification via OTP
                             </p>
                         </div>

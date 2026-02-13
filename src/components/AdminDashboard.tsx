@@ -7,6 +7,7 @@ import ComplaintDetails from './ComplaintDetails';
 import AssetManagement from './AssetManagement';
 import ClassroomManagement from './ClassroomManagement';
 import CleaningManagement from './CleaningManagement';
+import EmergencyManagement from './EmergencyManagement';
 import UserManagement from './admin/UserManagement';
 import NotificationBell from './common/NotificationBell';
 import type { Complaint, AnalyticsData } from '../types';
@@ -24,7 +25,7 @@ const AdminDashboard = () => {
     const { user: currentAdmin, logout } = useAuth();
 
     const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(null);
-    const [activeTab, setActiveTab] = useState<'overview' | 'complaints' | 'students' | 'technicians' | 'cleaners' | 'assets' | 'classrooms' | 'cleaning'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'complaints' | 'students' | 'technicians' | 'cleaners' | 'assets' | 'classrooms' | 'cleaning' | 'emergency'>('overview');
     const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
@@ -285,7 +286,8 @@ const AdminDashboard = () => {
                             { id: 'cleaners', label: 'Cleaners', icon: Users },
                             { id: 'assets', label: 'Assets', icon: Box },
                             { id: 'classrooms', label: 'Classrooms', icon: BookOpen },
-                            { id: 'cleaning', label: 'Cleaning', icon: Sparkles }
+                            { id: 'cleaning', label: 'Cleaning', icon: Sparkles },
+                            { id: 'emergency', label: 'Emergency', icon: AlertTriangle }
                         ].map((tab) => (
                             <button
                                 key={tab.id}
@@ -363,6 +365,7 @@ const AdminDashboard = () => {
                             {activeTab === 'assets' && <AssetManagement />}
                             {activeTab === 'classrooms' && <ClassroomManagement />}
                             {activeTab === 'cleaning' && <CleaningManagement />}
+                            {activeTab === 'emergency' && <EmergencyManagement />}
                         </div>
                     </>
                 )}
