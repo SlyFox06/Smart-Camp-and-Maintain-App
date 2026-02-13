@@ -68,7 +68,7 @@ const UserManagement = ({ role }: UserManagementProps) => {
         try {
             let response;
             if (role === 'technician') {
-                response = await api.post('/admin/technicians', {
+                response = await api.post('/auth/technicians', {
                     name: newUser.name,
                     email: newUser.email,
                     phone: newUser.phone,
@@ -76,7 +76,7 @@ const UserManagement = ({ role }: UserManagementProps) => {
                     assignedArea: newUser.assignedArea
                 });
             } else {
-                response = await api.post('/admin/users', {
+                response = await api.post('/auth/users', {
                     name: newUser.name,
                     email: newUser.email,
                     phone: newUser.phone,
@@ -108,93 +108,99 @@ const UserManagement = ({ role }: UserManagementProps) => {
     return (
         <div className="space-y-4">
             <div className="flex justify-between items-center mb-4">
-                <div className="relative w-72">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <div className="relative w-80 group">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#00D4FF] w-4 h-4 group-hover:drop-shadow-[0_0_5px_rgba(0,212,255,0.8)] transition-all" />
                     <input
                         type="text"
                         placeholder={`Search ${role}s...`}
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="input-field-light pl-10"
+                        className="w-full pl-10 pr-4 py-2 rounded-lg bg-[#0a0e27]/90 border border-[#00d4ff]/40 text-white placeholder-slate-400 focus:outline-none focus:border-[#00d4ff] shadow-[0_0_20px_rgba(0,212,255,0.1)] transition-all"
                     />
                 </div>
                 <button
                     onClick={() => setIsAddModalOpen(true)}
-                    className="btn-primary flex items-center gap-2"
+                    className="flex items-center gap-2 px-4 py-2 bg-gradient-to-br from-[#00D4FF] to-[#3B82F6] text-white rounded-lg shadow-[0_6px_20px_rgba(0,212,255,0.5),0_0_30px_rgba(0,212,255,0.3)] hover:scale-105 hover:brightness-110 transition-all font-medium backdrop-blur-sm"
                 >
                     <Plus className="w-4 h-4" />
                     Add {role === 'student' ? 'Student' : 'Technician'}
                 </button>
             </div>
 
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] border border-[#00d4ff]/20 overflow-hidden backdrop-blur-md bg-[#0a0e27]/40">
                 <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm">
-                        <thead className="bg-gray-50 border-b border-gray-200">
+                        <thead className="bg-[#0a0e27]/80 border-b-2 border-[#00d4ff]/30 text-[#00D4FF]">
                             <tr>
-                                <th className="px-6 py-3 font-semibold text-gray-700">Name</th>
-                                <th className="px-6 py-3 font-semibold text-gray-700">Details</th>
-                                <th className="px-6 py-3 font-semibold text-gray-700">Status</th>
-                                <th className="px-6 py-3 font-semibold text-gray-700">Actions</th>
+                                <th className="px-6 py-4 font-semibold tracking-wide uppercase text-xs">Name</th>
+                                <th className="px-6 py-4 font-semibold tracking-wide uppercase text-xs">Details</th>
+                                <th className="px-6 py-4 font-semibold tracking-wide uppercase text-xs">Status</th>
+                                <th className="px-6 py-4 font-semibold tracking-wide uppercase text-xs">Actions</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-100">
-                            {filteredUsers.map((user) => (
-                                <tr key={user.id} className="hover:bg-gray-50 transition-colors">
-                                    <td className="px-6 py-4">
+                        <tbody className="divide-y divide-[#00d4ff]/10">
+                            {filteredUsers.map((user, index) => (
+                                <tr
+                                    key={user.id}
+                                    className={`transition-all duration-300 hover:bg-[#00d4ff]/10 hover:shadow-[0_0_20px_rgba(0,212,255,0.15)] ${index % 2 === 0 ? 'bg-[#0f172a]/50' : 'bg-[#1a0b2e]/40'}`}
+                                >
+                                    <td className="px-6 py-4 border-b border-[#00d4ff]/10 text-slate-300">
                                         <div className="flex items-center gap-3">
-                                            <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center text-purple-700 font-bold">
-                                                {user.name.charAt(0)}
+                                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#00D4FF] to-[#9D4EDD] shadow-[0_4px_16px_rgba(0,212,255,0.4)] border-2 border-white/20 flex items-center justify-center text-white font-bold text-lg relative group">
+                                                <span className="relative z-10">{user.name.charAt(0)}</span>
+                                                <div className="absolute inset-0 rounded-full bg-white/20 blur-sm opacity-0 group-hover:opacity-100 transition-opacity"></div>
                                             </div>
                                             <div>
-                                                <p className="font-medium text-gray-900">{user.name}</p>
-                                                <p className="text-gray-500 text-xs">{user.email}</p>
+                                                <p className="font-medium text-white group-hover:text-[#00D4FF] transition-colors shadow-black drop-shadow-sm">{user.name}</p>
+                                                <p className="text-cyan-200/60 text-xs">{user.email}</p>
                                             </div>
                                         </div>
                                     </td>
-                                    <td className="px-6 py-4">
-                                        <p>{user.phone || 'N/A'}</p>
-                                        <p className="text-gray-500 text-xs">
+                                    <td className="px-6 py-4 border-b border-[#00d4ff]/10 text-slate-300">
+                                        <p className="text-white/90">{user.phone || 'N/A'}</p>
+                                        <p className="text-cyan-200/50 text-xs mt-1 font-mono tracking-wider">
                                             {role === 'technician' ?
                                                 `${user.technician?.skillType} • ${user.technician?.assignedArea}` :
                                                 user.department}
                                         </p>
                                     </td>
-                                    <td className="px-6 py-4">
+                                    <td className="px-6 py-4 border-b border-[#00d4ff]/10">
                                         {(() => {
                                             if (!user.isActive) {
                                                 return (
-                                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">
+                                                    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-red-500/20 text-red-400 border border-red-500/30 shadow-[0_0_12px_rgba(239,68,68,0.3)] backdrop-blur-sm">
                                                         Inactive
                                                     </span>
                                                 );
                                             }
                                             if (role === 'technician' && user.technician && !user.technician.isAvailable) {
                                                 return (
-                                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                                                    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-[#9D4EDD]/20 text-[#9D4EDD] border border-[#9D4EDD]/40 shadow-[0_0_12px_rgba(157,78,221,0.3)] backdrop-blur-sm">
                                                         Unavailable
                                                     </span>
                                                 );
                                             }
                                             return (
-                                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                                                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-green-500/20 text-green-400 border border-green-500/30 shadow-[0_0_12px_rgba(16,185,129,0.3)] backdrop-blur-sm">
                                                     Active
                                                 </span>
                                             );
                                         })()}
                                     </td>
-                                    <td className="px-6 py-4">
-                                        <div className="flex gap-2">
+                                    <td className="px-6 py-4 border-b border-[#00d4ff]/10">
+                                        <div className="flex gap-3">
                                             <button
                                                 onClick={() => setEditingUser(user)}
-                                                className="p-1 hover:bg-gray-200 rounded text-gray-600"
+                                                className="p-2 rounded-lg bg-[#00d4ff]/20 border border-[#00d4ff]/40 text-[#00D4FF] shadow-[0_0_10px_rgba(0,212,255,0.2)] hover:bg-[#00d4ff]/30 hover:shadow-[0_0_15px_rgba(0,212,255,0.4)] transition-all transform hover:scale-105"
                                                 title="Edit"
                                             >
                                                 <Edit2 className="w-4 h-4" />
                                             </button>
                                             <button
                                                 onClick={() => handleToggleStatus(user.id, user.isActive || false)}
-                                                className={`p-1 hover:bg-gray-200 rounded ${user.isActive ? 'text-red-600' : 'text-green-600'}`}
+                                                className={`p-2 rounded-lg border transition-all transform hover:scale-105 ${user.isActive
+                                                    ? 'bg-red-500/20 border-red-500/40 text-red-400 hover:bg-red-500/30 shadow-[0_0_10px_rgba(239,68,68,0.2)]'
+                                                    : 'bg-green-500/20 border-green-500/40 text-green-400 hover:bg-green-500/30 shadow-[0_0_10px_rgba(34,197,94,0.2)]'}`}
                                                 title={user.isActive ? 'Deactivate' : 'Activate'}
                                             >
                                                 {user.isActive ? <UserX className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}

@@ -72,4 +72,5 @@ app.get('/health', (req, res) => {
 app.listen(PORT, () => {
     console.log(`🚀 Server running on http://localhost:${PORT}`);
     console.log(`✅ Using Prisma via Supabase PostgreSQL`);
+    console.log(`🔄 Server restarted with new email config at ${new Date().toLocaleTimeString()}`);
 });

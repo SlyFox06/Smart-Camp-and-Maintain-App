@@ -8,7 +8,7 @@ import ComplaintDetails from './ComplaintDetails';
 import NotificationBell from './common/NotificationBell';
 
 const TechnicianDashboard = () => {
-    const { user: currentTechnician, updateUser } = useAuth();
+    const { user: currentTechnician, updateUser, logout } = useAuth();
     const [complaints, setComplaints] = useState<Complaint[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(null);
@@ -135,6 +135,12 @@ const TechnicianDashboard = () => {
                                 {isToggling ? 'Updating...' : isAvailable ? 'Available' : 'Unavailable'}
                             </button>
                             <NotificationBell />
+                            <button
+                                onClick={logout}
+                                className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors text-sm font-medium border border-white/20"
+                            >
+                                Sign Out
+                            </button>
                         </div>
                     </div>
 

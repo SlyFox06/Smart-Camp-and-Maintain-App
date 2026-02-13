@@ -24,10 +24,16 @@ export const sendEmail = async (to: string, subject: string, html: string) => {
             html
         });
 
-        console.log(`📧 Email sent: ${info.messageId}`);
+        console.log(`✅ [EmailService] Email sent successfully: ${info.messageId}`);
         return info;
-    } catch (error) {
-        console.error('❌ Error sending email:', error);
+    } catch (error: any) {
+        console.error('❌ [EmailService] Error sending email:', error);
+        // Log basic auth details (safe versions) for debugging
+        console.error('Debug Info:', {
+            user: process.env.EMAIL_USER,
+            passLength: process.env.EMAIL_PASS?.length,
+            host: process.env.EMAIL_SERVICE
+        });
         throw error;
     }
 };

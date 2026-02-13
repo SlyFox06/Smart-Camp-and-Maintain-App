@@ -15,7 +15,7 @@ interface StudentDashboardProps {
 }
 
 const StudentDashboard = ({ prefilledAssetId, autoOpenForm }: StudentDashboardProps = {}) => {
-    const { user: currentUser } = useAuth();
+    const { user: currentUser, logout } = useAuth();
     const [complaints, setComplaints] = useState<Complaint[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [showComplaintForm, setShowComplaintForm] = useState(autoOpenForm || false);
@@ -104,6 +104,12 @@ const StudentDashboard = ({ prefilledAssetId, autoOpenForm }: StudentDashboardPr
                             >
                                 <Plus className="w-5 h-5" />
                                 Report Issue
+                            </button>
+                            <button
+                                onClick={logout}
+                                className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors text-sm md:text-base font-medium border border-white/20"
+                            >
+                                Sign Out
                             </button>
                         </div>
                     </div>

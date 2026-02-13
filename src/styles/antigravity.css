@@ -1,0 +1,25 @@
+@layer utilities {
+    .glass-panel {
+        @apply backdrop-blur-md bg-opacity-95 border border-cyan-500/20 shadow-[0_8px_32px_rgba(0,212,255,0.1)];
+    }
+    
+    .floating-card {
+        animation: float 6s ease-in-out infinite;
+        background: linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(15, 23, 42, 0.9) 100%);
+        box-shadow: 0 8px 32px rgba(0, 212, 255, 0.1), 0 0 40px rgba(59, 130, 246, 0.05);
+    }
+
+    .neon-text {
+        text-shadow: 0 0 10px rgba(0, 212, 255, 0.5);
+    }
+
+    .neon-border {
+        box-shadow: 0 0 10px rgba(0, 212, 255, 0.3);
+    }
+
+    @keyframes float {
+        0% { transform: translateY(0px); }
+        50% { transform: translateY(-10px); }
+        100% { transform: translateY(0px); }
+    }
+}
