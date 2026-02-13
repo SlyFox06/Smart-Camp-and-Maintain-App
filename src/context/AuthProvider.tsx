@@ -66,6 +66,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         window.location.href = '/login'; // Force clear state and redirect
     };
 
+    const updateUser = (updatedUser: User) => {
+        setUser(updatedUser);
+        localStorage.setItem('user', JSON.stringify(updatedUser));
+    };
+
     return (
         <AuthContext.Provider value={{
             user,
@@ -73,7 +78,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             login,
             registerStudent,
             logout,
-            isLoading
+            isLoading,
+            updateUser
         }}>
             {children}
         </AuthContext.Provider>

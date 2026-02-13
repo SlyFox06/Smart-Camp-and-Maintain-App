@@ -8,6 +8,7 @@ export interface AuthContextType {
     registerStudent: (data: RegisterFormData) => Promise<User>;
     logout: () => void;
     isLoading: boolean;
+    updateUser: (user: User) => void;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);

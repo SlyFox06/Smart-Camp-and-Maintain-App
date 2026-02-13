@@ -1,11 +1,16 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import prisma from '../db/prisma';
+import { sendWelcomeEmail, sendPasswordResetEmail } from '../utils/emailService';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your_super_secret_jwt_key_here';
 
+// ... (register and login functions remain unchanged - I will match the original code for context in Apply)
+
 export const register = async (req: Request, res: Response) => {
+    // ... code matching original register function ...
     console.log('Register request received:', req.body.email);
     const { email, password, name, role, department, phone } = req.body;
 
@@ -39,6 +44,10 @@ export const register = async (req: Request, res: Response) => {
 
         const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
 
+        // Optionally send welcome email for self-registration too? 
+        // Request said "created by user of tech and student", implying Admin creation. 
+        // I will stick to admin creation sending emails for now unless requested.
+
         res.status(201).json({ user, token });
     } catch (error: any) {
         console.error('Registration failed:', error);
@@ -47,12 +56,14 @@ export const register = async (req: Request, res: Response) => {
 };
 
 export const login = async (req: Request, res: Response) => {
+    // ... code matching original login function ...
     console.log('Login attempt for:', req.body.email);
     const { email, password } = req.body;
 
     try {
         const user = await prisma.user.findUnique({
-            where: { email }
+            where: { email },
+            include: { technician: true }
         });
 
         if (!user) {
@@ -81,7 +92,26 @@ export const login = async (req: Request, res: Response) => {
     }
 };
 
+export const updateAvailability = async (req: Request, res: Response) => {
+    // ... original code ...
+    const userId = (req as any).user?.id;
+    const { isAvailable } = req.body;
+
+    try {
+        const technician = await prisma.technician.update({
+            where: { userId },
+            data: { isAvailable }
+        });
+
+        res.json({ message: 'Availability updated', isAvailable: technician.isAvailable });
+    } catch (error: any) {
+        console.error('Update availability failed:', error);
+        res.status(500).json({ message: 'Failed to update availability', error: error.message });
+    }
+};
+
 export const changePassword = async (req: Request, res: Response) => {
+    // ... original code ...
     const { newPassword } = req.body;
     const userId = (req as any).user?.id;
 
@@ -128,7 +158,6 @@ export const createTechnician = async (req: Request, res: Response) => {
             return res.status(400).json({ message: 'User already exists' });
         }
 
-        const crypto = await import('crypto');
         const tempPassword = crypto.randomBytes(4).toString('hex');
         const hashedPassword = await bcrypt.hash(tempPassword, 10);
 
@@ -155,6 +184,7 @@ export const createTechnician = async (req: Request, res: Response) => {
             }
         });
 
+        // AUDIT LOG
         if (adminId) {
             await prisma.auditLog.create({
                 data: {
@@ -165,8 +195,11 @@ export const createTechnician = async (req: Request, res: Response) => {
             });
         }
 
+        // SEND EMAIL
+        await sendWelcomeEmail(email, name, tempPassword, 'Technician');
+
         res.status(201).json({
-            message: 'Technician registered successfully',
+            message: 'Technician registered successfully and credentials sent to email',
             technician: { id: newUser.id, email: newUser.email, name: newUser.name }
         });
 
@@ -177,7 +210,16 @@ export const createTechnician = async (req: Request, res: Response) => {
 };
 
 export const createUser = async (req: Request, res: Response) => {
-    const { email, password, name, role, department, phone } = req.body;
+    const { email, name, role, department, phone, password } = req.body;
+    // If password provided, use it. If not, generate one.
+    // Assuming if password is provided, we should send that. 
+    // If not, we generate random.
+
+    // For manual creation, often admins might not provide password.
+    let finalPassword = password;
+    if (!finalPassword) {
+        finalPassword = crypto.randomBytes(4).toString('hex');
+    }
 
     try {
         const existingUser = await prisma.user.findUnique({
@@ -188,7 +230,7 @@ export const createUser = async (req: Request, res: Response) => {
             return res.status(400).json({ message: 'User already exists' });
         }
 
-        const hashedPassword = await bcrypt.hash(password, 10);
+        const hashedPassword = await bcrypt.hash(finalPassword, 10);
 
         const user = await prisma.user.create({
             data: {
@@ -203,9 +245,75 @@ export const createUser = async (req: Request, res: Response) => {
             }
         });
 
-        res.status(201).json({ user });
+        // SEND EMAIL
+        await sendWelcomeEmail(email, name, finalPassword, role);
+
+        res.status(201).json({ user, message: 'User created and credentials emailed' });
     } catch (error: any) {
         console.error('Create user failed:', error);
         res.status(500).json({ message: 'User creation failed', error: error.message });
+    }
+};
+
+export const forgotPassword = async (req: Request, res: Response) => {
+    const { email } = req.body;
+
+    try {
+        const user = await prisma.user.findUnique({ where: { email } });
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        const resetToken = crypto.randomBytes(32).toString('hex');
+        const resetPasswordExpires = new Date(Date.now() + 3600000); // 1 hour
+
+        await prisma.user.update({
+            where: { id: user.id },
+            data: {
+                resetPasswordToken: resetToken,
+                resetPasswordExpires
+            }
+        });
+
+        await sendPasswordResetEmail(email, resetToken);
+
+        res.json({ message: 'Password reset link sent to email' });
+    } catch (error: any) {
+        console.error('Forgot password error:', error);
+        res.status(500).json({ message: 'Failed to process request', error: error.message });
+    }
+};
+
+export const resetPassword = async (req: Request, res: Response) => {
+    const { token, newPassword } = req.body;
+
+    try {
+        const user = await prisma.user.findFirst({
+            where: {
+                resetPasswordToken: token,
+                resetPasswordExpires: { gt: new Date() }
+            }
+        });
+
+        if (!user) {
+            return res.status(400).json({ message: 'Invalid or expired token' });
+        }
+
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+        await prisma.user.update({
+            where: { id: user.id },
+            data: {
+                password: hashedPassword,
+                resetPasswordToken: null,
+                resetPasswordExpires: null,
+                isFirstLogin: false
+            }
+        });
+
+        res.json({ message: 'Password has been reset successfully' });
+    } catch (error: any) {
+        console.error('Reset password error:', error);
+        res.status(500).json({ message: 'Failed to reset password', error: error.message });
     }
 };

@@ -1,14 +1,14 @@
-import { useState, useEffect } from 'react';
-import { Wrench, Clock, CheckCircle, TrendingUp, Search, Filter, X } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Wrench, Clock, CheckCircle, TrendingUp, Search, Filter, X, Image as ImageIcon, AlertCircle } from 'lucide-react';
 import type { Complaint, ComplaintStatus } from '../types';
 import api from '../services/api';
 import { useAuth } from '../hooks/useAuth';
-import { getTimeDifference, getStatusBadgeStyle, getSeverityBadgeStyle } from '../utils/helpers';
+import { getTimeDifference, getStatusBadgeStyle, getSeverityBadgeStyle, isValidImageFile, formatFileSize } from '../utils/helpers';
 import ComplaintDetails from './ComplaintDetails';
 import NotificationBell from './common/NotificationBell';
 
 const TechnicianDashboard = () => {
-    const { user: currentTechnician } = useAuth();
+    const { user: currentTechnician, updateUser } = useAuth();
     const [complaints, setComplaints] = useState<Complaint[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(null);
@@ -16,6 +16,38 @@ const TechnicianDashboard = () => {
     const [statusFilter, setStatusFilter] = useState<ComplaintStatus | 'all'>('all');
     const [showUpdateModal, setShowUpdateModal] = useState(false);
     const [selectedComplaintForUpdate, setSelectedComplaintForUpdate] = useState<Complaint | null>(null);
+    const [isAvailable, setIsAvailable] = useState(currentTechnician?.technician?.isAvailable ?? true);
+    const [isToggling, setIsToggling] = useState(false);
+
+    useEffect(() => {
+        if (currentTechnician?.technician?.isAvailable !== undefined) {
+            setIsAvailable(currentTechnician.technician.isAvailable);
+        }
+    }, [currentTechnician]);
+
+    const handleToggleAvailability = async () => {
+        setIsToggling(true);
+        try {
+            const newStatus = !isAvailable;
+            await api.patch('/auth/availability', { isAvailable: newStatus });
+            setIsAvailable(newStatus);
+
+            if (currentTechnician && currentTechnician.technician) {
+                updateUser({
+                    ...currentTechnician,
+                    technician: {
+                        ...currentTechnician.technician,
+                        isAvailable: newStatus
+                    }
+                });
+            }
+        } catch (error) {
+            console.error('Failed to update availability', error);
+            alert('Failed to update status');
+        } finally {
+            setIsToggling(false);
+        }
+    };
 
     useEffect(() => {
         fetchComplaints();
@@ -23,7 +55,7 @@ const TechnicianDashboard = () => {
 
     const fetchComplaints = async () => {
         try {
-            const response = await api.get('/complaints/technician');
+            const response = await api.get('/complaints/assigned');
             setComplaints(response.data);
         } catch (error) {
             console.error('Failed to fetch technician tasks', error);
@@ -44,21 +76,21 @@ const TechnicianDashboard = () => {
     const stats = [
         {
             label: 'Assigned Tasks',
-            value: complaints.filter(c => ['assigned', 'in_progress'].includes(c.status)).length,
+            value: complaints.filter(c => ['assigned', 'in_progress', 'rework_required'].includes(c.status)).length,
             icon: Wrench,
             color: 'from-orange-500 to-red-500'
         },
         {
-            label: 'Completed',
-            value: complaints.filter(c => ['resolved', 'closed'].includes(c.status)).length,
-            icon: CheckCircle,
-            color: 'from-green-500 to-emerald-500'
-        },
-        {
-            label: 'Avg. Time',
-            value: `45m`, // Simulated for now
+            label: 'Under Review',
+            value: complaints.filter(c => c.status === 'work_submitted').length,
             icon: Clock,
             color: 'from-blue-500 to-cyan-500'
+        },
+        {
+            label: 'Completed',
+            value: complaints.filter(c => ['resolved', 'closed', 'work_approved'].includes(c.status)).length,
+            icon: CheckCircle,
+            color: 'from-green-500 to-emerald-500'
         },
         {
             label: 'Rating',
@@ -91,6 +123,17 @@ const TechnicianDashboard = () => {
                             <p className="text-white/80">Welcome back, {currentTechnician.name}!</p>
                         </div>
                         <div className="flex items-center gap-4">
+                            <button
+                                onClick={handleToggleAvailability}
+                                disabled={isToggling}
+                                className={`px-4 py-2 rounded-full font-semibold flex items-center gap-2 transition-all shadow-lg text-sm border-2 ${isAvailable
+                                    ? 'bg-green-500 border-white/20 text-white hover:bg-green-600'
+                                    : 'bg-gray-800 border-white/20 text-gray-200 hover:bg-gray-900'
+                                    }`}
+                            >
+                                <div className={`w-2 h-2 rounded-full ${isAvailable ? 'bg-white animate-pulse' : 'bg-red-500'}`} />
+                                {isToggling ? 'Updating...' : isAvailable ? 'Available' : 'Unavailable'}
+                            </button>
                             <NotificationBell />
                         </div>
                     </div>
@@ -137,6 +180,9 @@ const TechnicianDashboard = () => {
                                 <option value="all">All Status</option>
                                 <option value="assigned">Assigned</option>
                                 <option value="in_progress">In Progress</option>
+                                <option value="work_submitted">Under Review</option>
+                                <option value="work_approved">Work Approved</option>
+                                <option value="rework_required">Rework Required</option>
                                 <option value="resolved">Resolved</option>
                                 <option value="closed">Closed</option>
                             </select>
@@ -169,6 +215,18 @@ const TechnicianDashboard = () => {
                                             </span>
                                         </div>
                                         <p className="text-gray-600 mb-2">{complaint.description}</p>
+
+                                        {/* Display Admin Comment if Rework Required */}
+                                        {complaint.status === 'rework_required' && complaint.adminComment && (
+                                            <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
+                                                <AlertCircle className="w-5 h-5 text-red-500 mt-0.5" />
+                                                <div>
+                                                    <p className="text-sm font-bold text-red-800">Rework Required:</p>
+                                                    <p className="text-sm text-red-700">{complaint.adminComment}</p>
+                                                </div>
+                                            </div>
+                                        )}
+
                                         <div className="flex items-center gap-4 text-sm text-gray-500">
                                             <span>ID: {complaint.id}</span>
                                             <span>•</span>
@@ -211,17 +269,22 @@ const TechnicianDashboard = () => {
                                     >
                                         View Details
                                     </button>
-                                    {complaint.status !== 'resolved' && complaint.status !== 'closed' && (
+                                    {!['work_submitted', 'resolved', 'closed', 'work_approved'].includes(complaint.status) && (
                                         <button
                                             onClick={() => handleUpdateStatus(complaint)}
                                             className="flex-1 btn-primary"
                                         >
-                                            Update Status
+                                            {complaint.status === 'rework_required' ? 'Resubmit Work' : 'Update Status'}
                                         </button>
+                                    )}
+                                    {['work_submitted', 'work_approved'].includes(complaint.status) && (
+                                        <div className="flex-1 px-4 py-2 bg-blue-50 text-blue-700 font-semibold rounded-lg text-center border border-blue-200">
+                                            Under Review
+                                        </div>
                                     )}
                                     {complaint.status === 'resolved' && (
                                         <div className="flex-1 px-4 py-2 bg-green-100 text-green-800 font-semibold rounded-lg text-center border border-green-300">
-                                            OTP: {complaint.otp}
+                                            Completed
                                         </div>
                                     )}
                                 </div>
@@ -253,24 +316,68 @@ const TechnicianDashboard = () => {
 };
 
 const UpdateStatusModal = ({ complaint, onClose }: { complaint: Complaint; onClose: () => void }) => {
-    const [status, setStatus] = useState(complaint.status);
+    // Determine initial next step based on current status
+    const getInitialNextStatus = () => {
+        if (complaint.status === 'assigned') return 'in_progress';
+        if (complaint.status === 'in_progress' || complaint.status === 'rework_required') return 'work_submitted';
+        return 'in_progress';
+    };
+
+    const [status, setStatus] = useState<string>(getInitialNextStatus());
     const [notes, setNotes] = useState('');
+    const [image, setImage] = useState<File | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const imageInputRef = useRef<HTMLInputElement>(null);
+
+    const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file && isValidImageFile(file)) {
+            setImage(file);
+        } else {
+            alert('Please select a valid image file');
+        }
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsSubmitting(true);
         try {
-            await api.patch(`/complaints/${complaint.id}/status`, {
-                status,
-                notes,
-                repairEvidence: status === 'resolved' ? 'https://example.com/repair.jpg' : null
-            });
-            onClose();
+            if (status === 'work_submitted') {
+                if (!image) {
+                    alert('Please upload proof of work');
+                    setIsSubmitting(false);
+                    return;
+                }
+
+                // Convert to Base64
+                const reader = new FileReader();
+                reader.readAsDataURL(image);
+                reader.onload = async () => {
+                    const base64API = reader.result as string;
+
+                    try {
+                        await api.post(`/complaints/${complaint.id}/work-submit`, {
+                            proof: [base64API],
+                            note: notes
+                        });
+                        onClose();
+                    } catch (error: any) {
+                        console.error('Failed to submit work', error);
+                        const errorMessage = error.response?.data?.error || error.response?.data?.message || 'Failed to submit work';
+                        alert(`Error: ${errorMessage}`);
+                    }
+                };
+            } else {
+                // Regular status update (e.g. assigned -> in_progress)
+                await api.patch(`/complaints/${complaint.id}/status`, {
+                    status,
+                    message: notes
+                });
+                onClose();
+            }
         } catch (error) {
             console.error('Failed to update status', error);
             alert('Failed to update status');
-        } finally {
             setIsSubmitting(false);
         }
     };
@@ -290,20 +397,59 @@ const UpdateStatusModal = ({ complaint, onClose }: { complaint: Complaint; onClo
                         <label className="block text-sm font-semibold text-gray-700 mb-2">New Status</label>
                         <select
                             value={status}
-                            onChange={(e) => setStatus(e.target.value as any)}
+                            onChange={(e) => setStatus(e.target.value)}
                             className="input-field-light"
                         >
-                            <option value="assigned">Assigned</option>
-                            <option value="in_progress">In Progress</option>
-                            <option value="resolved">Resolved</option>
+                            {complaint.status === 'assigned' && <option value="in_progress">In Progress</option>}
+                            <option value="work_submitted">Submit Work (Complete)</option>
                         </select>
                     </div>
+
+                    {status === 'work_submitted' && (
+                        <div>
+                            <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                Work Proof Image <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                                ref={imageInputRef}
+                                type="file"
+                                accept="image/*"
+                                onChange={handleImageUpload}
+                                className="hidden"
+                            />
+                            <button
+                                type="button"
+                                onClick={() => imageInputRef.current?.click()}
+                                className="w-full p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors"
+                            >
+                                {image ? (
+                                    <div className="flex items-center gap-3">
+                                        <img
+                                            src={URL.createObjectURL(image)}
+                                            alt="Preview"
+                                            className="w-16 h-16 object-cover rounded-lg"
+                                        />
+                                        <div className="text-left">
+                                            <p className="text-sm font-medium text-gray-900">{image.name}</p>
+                                            <p className="text-xs text-gray-500">{formatFileSize(image.size)}</p>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="text-center">
+                                        <ImageIcon className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                                        <p className="text-sm text-gray-600">Click to upload proof</p>
+                                    </div>
+                                )}
+                            </button>
+                        </div>
+                    )}
+
                     <div>
                         <label className="block text-sm font-semibold text-gray-700 mb-2">Notes</label>
                         <textarea
                             value={notes}
                             onChange={(e) => setNotes(e.target.value)}
-                            placeholder="Add notes..."
+                            placeholder="Add notes about the work..."
                             className="input-field-light"
                             rows={4}
                         />
@@ -311,7 +457,7 @@ const UpdateStatusModal = ({ complaint, onClose }: { complaint: Complaint; onClo
                     <div className="flex gap-4">
                         <button type="button" onClick={onClose} className="flex-1 btn-secondary">Cancel</button>
                         <button type="submit" disabled={isSubmitting} className="flex-1 btn-primary">
-                            {isSubmitting ? 'Updating...' : 'Update Status'}
+                            {isSubmitting ? 'Updating...' : (status === 'work_submitted' ? 'Submit Work' : 'Update Status')}
                         </button>
                     </div>
                 </form>

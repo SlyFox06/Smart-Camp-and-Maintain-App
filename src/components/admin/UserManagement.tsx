@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, Edit2, UserX, UserCheck } from 'lucide-react';
+import { Search, Edit2, UserX, UserCheck, Plus } from 'lucide-react';
 import api from '../../services/api';
 import type { User } from '../../types';
 
@@ -12,6 +12,15 @@ const UserManagement = ({ role }: UserManagementProps) => {
     const [isLoading, setIsLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [editingUser, setEditingUser] = useState<User | null>(null);
+    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [newUser, setNewUser] = useState({
+        name: '',
+        email: '',
+        phone: '',
+        department: '',
+        skillType: '',
+        assignedArea: ''
+    });
 
     useEffect(() => {
         fetchUsers();
@@ -54,6 +63,40 @@ const UserManagement = ({ role }: UserManagementProps) => {
         }
     };
 
+    const handleAddUser = async (e: React.FormEvent) => {
+        e.preventDefault();
+        try {
+            let response;
+            if (role === 'technician') {
+                response = await api.post('/admin/technicians', {
+                    name: newUser.name,
+                    email: newUser.email,
+                    phone: newUser.phone,
+                    skillType: newUser.skillType,
+                    assignedArea: newUser.assignedArea
+                });
+            } else {
+                response = await api.post('/admin/users', {
+                    name: newUser.name,
+                    email: newUser.email,
+                    phone: newUser.phone,
+                    department: newUser.department,
+                    role: 'student'
+                });
+            }
+
+            // Backend now sends email with auto-generated credentials
+            alert(`User created successfully! Login credentials have been sent to ${newUser.email}`);
+            setUsers([...users, response.data.technician || response.data.user || response.data]);
+            setIsAddModalOpen(false);
+            setNewUser({ name: '', email: '', phone: '', department: '', skillType: '', assignedArea: '' });
+            fetchUsers(); // Refresh list to get full data
+        } catch (error: any) {
+            console.error('Failed to create user', error);
+            alert(error.response?.data?.message || 'Failed to create user');
+        }
+    };
+
     const filteredUsers = users.filter(user =>
         user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -75,6 +118,13 @@ const UserManagement = ({ role }: UserManagementProps) => {
                         className="input-field-light pl-10"
                     />
                 </div>
+                <button
+                    onClick={() => setIsAddModalOpen(true)}
+                    className="btn-primary flex items-center gap-2"
+                >
+                    <Plus className="w-4 h-4" />
+                    Add {role === 'student' ? 'Student' : 'Technician'}
+                </button>
             </div>
 
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
@@ -111,10 +161,27 @@ const UserManagement = ({ role }: UserManagementProps) => {
                                         </p>
                                     </td>
                                     <td className="px-6 py-4">
-                                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${user.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                                            }`}>
-                                            {user.isActive ? 'Active' : 'Inactive'}
-                                        </span>
+                                        {(() => {
+                                            if (!user.isActive) {
+                                                return (
+                                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">
+                                                        Inactive
+                                                    </span>
+                                                );
+                                            }
+                                            if (role === 'technician' && user.technician && !user.technician.isAvailable) {
+                                                return (
+                                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                                                        Unavailable
+                                                    </span>
+                                                );
+                                            }
+                                            return (
+                                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                                                    Active
+                                                </span>
+                                            );
+                                        })()}
                                     </td>
                                     <td className="px-6 py-4">
                                         <div className="flex gap-2">
@@ -140,6 +207,106 @@ const UserManagement = ({ role }: UserManagementProps) => {
                     </table>
                 </div>
             </div>
+
+            {/* Add User Modal */}
+            {isAddModalOpen && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
+                        <h3 className="text-lg font-bold mb-4">Add New {role === 'student' ? 'Student' : 'Technician'}</h3>
+                        <form onSubmit={handleAddUser} className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium mb-1">Name</label>
+                                <input
+                                    type="text"
+                                    required
+                                    value={newUser.name}
+                                    onChange={e => setNewUser({ ...newUser, name: e.target.value })}
+                                    className="input-field-light"
+                                    placeholder="Full Name"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-1">Email</label>
+                                <input
+                                    type="email"
+                                    required
+                                    value={newUser.email}
+                                    onChange={e => setNewUser({ ...newUser, email: e.target.value })}
+                                    className="input-field-light"
+                                    placeholder="email@campus.edu"
+                                />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Phone</label>
+                                    <input
+                                        type="tel"
+                                        value={newUser.phone}
+                                        onChange={e => setNewUser({ ...newUser, phone: e.target.value })}
+                                        className="input-field-light"
+                                        placeholder="Optional"
+                                    />
+                                </div>
+                                {role === 'student' ? (
+                                    <div>
+                                        <label className="block text-sm font-medium mb-1">Department</label>
+                                        <input
+                                            type="text"
+                                            required
+                                            value={newUser.department}
+                                            onChange={e => setNewUser({ ...newUser, department: e.target.value })}
+                                            className="input-field-light"
+                                            placeholder="e.g. CS, EE"
+                                        />
+                                    </div>
+                                ) : (
+                                    <div>
+                                        <label className="block text-sm font-medium mb-1">Skill Type</label>
+                                        <input
+                                            type="text"
+                                            required
+                                            value={newUser.skillType}
+                                            onChange={e => setNewUser({ ...newUser, skillType: e.target.value })}
+                                            className="input-field-light"
+                                            placeholder="e.g. Electrical"
+                                        />
+                                    </div>
+                                )}
+                            </div>
+
+                            {role === 'technician' && (
+                                <div>
+                                    <label className="block text-sm font-medium mb-1">Assigned Area</label>
+                                    <input
+                                        type="text"
+                                        value={newUser.assignedArea}
+                                        onChange={e => setNewUser({ ...newUser, assignedArea: e.target.value })}
+                                        className="input-field-light"
+                                        placeholder="e.g. Building A"
+                                    />
+                                </div>
+                            )}
+
+                            <div className="bg-blue-50 p-3 rounded-lg text-sm text-blue-700">
+                                <p>A random password will be generated and sent to the user's email.</p>
+                            </div>
+
+                            <div className="flex justify-end gap-3 mt-6">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsAddModalOpen(false)}
+                                    className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+                                >
+                                    Cancel
+                                </button>
+                                <button type="submit" className="btn-primary">
+                                    Create & Send Email
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
 
             {/* Edit Modal */}
             {editingUser && (

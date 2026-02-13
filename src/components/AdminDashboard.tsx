@@ -5,7 +5,6 @@ import { useAuth } from '../hooks/useAuth';
 import { formatResolutionTime } from '../utils/helpers';
 import ComplaintDetails from './ComplaintDetails';
 import AssetManagement from './AssetManagement';
-import AddTechnicianModal from './AddTechnicianModal';
 import UserManagement from './admin/UserManagement';
 import NotificationBell from './common/NotificationBell';
 import type { Complaint, AnalyticsData, User, Asset } from '../types';
@@ -252,12 +251,7 @@ const AdminDashboard = () => {
                         {activeTab === 'complaints' && <ComplaintsTab onSelectComplaint={setSelectedComplaint} />}
                         {activeTab === 'students' && <UserManagement role="student" />}
                         {activeTab === 'technicians' && (
-                            <div>
-                                <div className="flex justify-end mb-4">
-                                    <TechTabHeader />
-                                </div>
-                                <UserManagement role="technician" />
-                            </div>
+                            <UserManagement role="technician" />
                         )}
                         {activeTab === 'assets' && <AssetManagement />}
                     </div>
@@ -442,22 +436,6 @@ function ComplaintsTab({ onSelectComplaint }: { onSelectComplaint: (complaint: C
                 </div>
             )}
         </div>
-    );
-}
-
-function TechTabHeader() {
-    const [showAddModal, setShowAddModal] = useState(false);
-    return (
-        <>
-            <button
-                onClick={() => setShowAddModal(true)}
-                className="btn-primary flex items-center gap-2"
-            >
-                <Wrench className="w-4 h-4" />
-                Register Technician
-            </button>
-            {showAddModal && <AddTechnicianModal onClose={() => setShowAddModal(false)} />}
-        </>
     );
 }
 

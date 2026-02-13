@@ -267,10 +267,30 @@ export const verifyOTP = async (req: Request, res: Response) => {
         res.status(500).json({ message: 'Failed to verify OTP', error: error.message });
     }
 };
+// Helper to map asset types to technician skills
+const getSkillForAssetType = (assetType: string): string => {
+    const type = assetType.toLowerCase();
+    if (['ac', 'fan', 'light', 'electrical', 'projector'].includes(type)) return 'Electrical'; // Projector often falls under electrical/IT, mapped to Electrical for now based on seed
+    if (['water_cooler', 'tap', 'plumbing', 'restroom'].includes(type)) return 'Plumbing';
+    if (['computer', 'printer', 'wifi', 'internet'].includes(type)) return 'Computer';
+    if (['furniture', 'door', 'window', 'carpentry'].includes(type)) return 'Carpentry';
+    return 'General';
+};
+
 export const handleApproval = async (req: Request, res: Response) => {
     try {
         const { id } = req.params as { id: string };
         const { action, notes } = req.body; // action: 'accept' | 'reject'
+
+        // Fetch complaint with asset to determine type
+        const existingComplaint = await prisma.complaint.findUnique({
+            where: { id },
+            include: { asset: true }
+        });
+
+        if (!existingComplaint) {
+            return res.status(404).json({ message: 'Complaint not found' });
+        }
 
         if (action === 'reject') {
             const complaint = await prisma.complaint.update({
@@ -293,12 +313,38 @@ export const handleApproval = async (req: Request, res: Response) => {
 
             return res.json(complaint);
         } else if (action === 'accept') {
+            // Auto-Assign Logic
+            let assignedTechId: string | null = null;
+            let assignmentMessage = 'Complaint approved. Pending manual assignment.';
+
+            if (existingComplaint.asset) {
+                const requiredSkill = getSkillForAssetType(existingComplaint.asset.type);
+
+                // Find available technician with matching skill
+                const availableTech = await prisma.technician.findFirst({
+                    where: {
+                        skillType: requiredSkill,
+                        isAvailable: true
+                    },
+                    include: { user: true } // Include user to get name/id
+                });
+
+                if (availableTech) {
+                    assignedTechId = availableTech.userId; // user.id is the foreign key in Complaint
+                    assignmentMessage = `Complaint approved and auto-assigned to ${availableTech.user.name} (${requiredSkill})`;
+                } else {
+                    assignmentMessage = `Complaint approved. No available ${requiredSkill} technician found for auto-assignment.`;
+                }
+            }
+
             const complaint = await prisma.complaint.update({
                 where: { id },
                 data: {
-                    status: 'assigned',
+                    status: 'assigned', // Approved implies assigned (or ready to be)
+                    technicianId: assignedTechId,
+                    assignedAt: assignedTechId ? new Date() : null
                 },
-                include: { student: true }
+                include: { student: true, technician: true }
             });
 
             // Update Asset Status to 'under_maintenance'
@@ -307,16 +353,38 @@ export const handleApproval = async (req: Request, res: Response) => {
                 data: { status: 'under_maintenance' }
             });
 
+            // Add Status History
+            await prisma.statusHistory.create({
+                data: {
+                    complaintId: id,
+                    status: 'assigned',
+                    message: assignmentMessage
+                }
+            });
+
             // Create notification for student
             await createNotification(
                 complaint.studentId,
                 'Complaint Approved',
-                'Your complaint has been approved and matches our maintenance criteria. A technician will be assigned shortly.',
+                assignedTechId
+                    ? `Your complaint has been approved and assigned to ${complaint.technician?.name}.`
+                    : 'Your complaint has been approved. A technician will be assigned shortly.',
                 'complaint_approved',
                 id
             );
 
-            return res.json(complaint);
+            // Notify Technician if assigned
+            if (assignedTechId) {
+                await createNotification(
+                    assignedTechId,
+                    'New Work Order Assigned',
+                    `You have been auto-assigned a new complaint: ${complaint.title}`,
+                    'complaint_assigned',
+                    id
+                );
+            }
+
+            return res.json({ ...complaint, message: assignmentMessage });
         }
 
         res.status(400).json({ message: 'Invalid action' });
@@ -330,27 +398,27 @@ export const submitWork = async (req: Request, res: Response) => {
     try {
         const { id } = req.params as { id: string };
         const { proof, note } = req.body;
-        const technicianId = (req as any).user?.id;
+        console.log(`[SubmitWork] ID: ${id}, Proof size: ${proof ? JSON.stringify(proof).length : 0} bytes`);
 
         const complaint = await prisma.complaint.findUnique({ where: { id } });
 
         if (!complaint) {
+            console.log('[SubmitWork] Complaint not found');
             return res.status(404).json({ message: 'Complaint not found' });
         }
 
-        // Verify technician assignment (optional strict check)
-        // if (complaint.technicianId !== technicianId) ...
-
+        console.log('[SubmitWork] Updating complaint...');
         const updated = await prisma.complaint.update({
             where: { id },
             data: {
                 status: 'work_submitted',
                 workProof: proof ? JSON.stringify(proof) : null,
                 workNote: note,
-                resolvedAt: new Date() // Tentative resolution time
+                resolvedAt: new Date()
             },
             include: { student: true, asset: true }
         });
+        console.log('[SubmitWork] Complaint updated successfully');
 
         await prisma.statusHistory.create({
             data: {
@@ -362,20 +430,26 @@ export const submitWork = async (req: Request, res: Response) => {
 
         // Notify Admins
         const admins = await prisma.user.findMany({ where: { role: 'admin' } });
+        console.log(`[SubmitWork] Notifying ${admins.length} admins...`);
+
         for (const admin of admins) {
-            await createNotification(
-                admin.id,
-                'Work Submitted for Review',
-                `Technician has completed work on: ${updated.title}`,
-                'work_submitted',
-                id
-            );
+            try {
+                await createNotification(
+                    admin.id,
+                    'Work Submitted for Review',
+                    `Technician has completed work on: ${updated.title}`,
+                    'work_submitted',
+                    id
+                );
+            } catch (notifyError) {
+                console.error(`[SubmitWork] Failed to notify admin ${admin.id}:`, notifyError);
+            }
         }
 
         res.json(updated);
     } catch (error: any) {
         console.error('Submit work error:', error);
-        res.status(500).json({ message: 'Failed to submit work', error: error.message });
+        res.status(500).json({ message: 'Failed to submit work', error: error.message, stack: error.stack });
     }
 };
 

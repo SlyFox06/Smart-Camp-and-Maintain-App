@@ -5,7 +5,7 @@ import type { Complaint } from '../types';
 import api from '../services/api';
 import { formatDate, getTimeDifference, formatResolutionTime, calculateResolutionTime } from '../utils/helpers';
 import { useAuth } from '../hooks/useAuth';
-// import { currentUser } from '../data/mockData';
+import AssignTechnicianModal from './AssignTechnicianModal';
 
 interface ComplaintDetailsProps {
     complaint: Complaint;
@@ -16,6 +16,7 @@ const ComplaintDetails = ({ complaint, onClose }: ComplaintDetailsProps) => {
     const [otpInput, setOtpInput] = useState('');
     const [otpError, setOtpError] = useState('');
     const [isVerifying, setIsVerifying] = useState(false);
+    const [showAssignModal, setShowAssignModal] = useState(false);
 
     // Priority Editing
     const [isEditingPriority, setIsEditingPriority] = useState(false);
@@ -73,15 +74,18 @@ const ComplaintDetails = ({ complaint, onClose }: ComplaintDetailsProps) => {
 
         setIsProcessing(true);
         try {
-            await api.post(`/complaints/${complaint.id}/approval`, {
+            const response = await api.post(`/complaints/${complaint.id}/approval`, {
                 action,
                 notes: rejectionReason
             });
-            alert(`Complaint ${action === 'accept' ? 'Approved' : 'Rejected'} Successfully`);
+
+            const message = response.data.message || `Complaint ${action === 'accept' ? 'Approved' : 'Rejected'} Successfully`;
+            alert(message);
             onClose();
-        } catch (error) {
+        } catch (error: any) {
             console.error(error);
-            alert('Action failed');
+            const errorMessage = error.response?.data?.message || 'Action failed';
+            alert(errorMessage);
         } finally {
             setIsProcessing(false);
         }
@@ -275,13 +279,24 @@ const ComplaintDetails = ({ complaint, onClose }: ComplaintDetailsProps) => {
                             <div className="flex gap-4">
                                 {!showRejectInput && (
                                     <button
-                                        onClick={() => handleApproval('accept')}
+                                        onClick={() => setShowAssignModal(true)}
                                         disabled={isProcessing}
                                         className="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors"
                                     >
                                         <CheckCircle className="w-5 h-5" />
                                         Approve & Assign
                                     </button>
+                                )}
+
+                                {showAssignModal && (
+                                    <AssignTechnicianModal
+                                        complaintId={complaint.id}
+                                        onClose={() => setShowAssignModal(false)}
+                                        onAssignSuccess={() => {
+                                            alert('Technician assigned successfully');
+                                            onClose();
+                                        }}
+                                    />
                                 )}
 
                                 <button
@@ -449,7 +464,7 @@ const ComplaintDetails = ({ complaint, onClose }: ComplaintDetailsProps) => {
                     </div>
 
                     {/* NEW: Technician Work Submission */}
-                    {isTechnician && (complaint.status === 'assigned' || complaint.status === 'rework_required') && (
+                    {isTechnician && (['assigned', 'in_progress', 'rework_required'].includes(complaint.status)) && (
                         <div className="bg-orange-50 border border-orange-200 rounded-xl p-6">
                             <h3 className="font-bold text-gray-900 mb-4 flex items-center gap-2">
                                 <Wrench className="w-5 h-5 text-orange-600" />
