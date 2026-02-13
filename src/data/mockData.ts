@@ -340,7 +340,7 @@ export const mockAnalytics: AnalyticsData = {
         { month: 'Dec', complaints: 28, resolved: 25 },
         { month: 'Jan', complaints: 24, resolved: 22 },
     ]
-};
+} as any;
 
 // Current logged-in user (can be changed based on login)
 export let currentUser: User = mockStudents[0];

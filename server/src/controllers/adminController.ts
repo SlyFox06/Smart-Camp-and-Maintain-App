@@ -139,8 +139,12 @@ export const getAllAssets = async (req: Request, res: Response) => {
 
 export const getAllUsers = async (req: Request, res: Response) => {
     try {
-        const { role } = req.query;
-        const where = role ? { role: String(role) } : {};
+        const { role, scope } = req.query;
+        const where: any = role ? { role: String(role) } : {};
+
+        if (scope) {
+            where.accessScope = { in: [String(scope), 'both'] };
+        }
 
         const users = await prisma.user.findMany({
             where,
@@ -156,7 +160,12 @@ export const getAllUsers = async (req: Request, res: Response) => {
                 createdAt: true,
                 technician: {
                     select: {
-                        skillType: true,
+                        assignedArea: true,
+                        isAvailable: true
+                    }
+                },
+                cleaner: {
+                    select: {
                         assignedArea: true,
                         isAvailable: true
                     }
@@ -175,13 +184,13 @@ export const getAllUsers = async (req: Request, res: Response) => {
 export const updateUser = async (req: Request, res: Response) => {
     try {
         const { id } = req.params as { id: string };
-        const { name, phone, department, skillType, assignedArea } = req.body;
+        const { name, phone, department, skillType, assignedArea, accessScope } = req.body;
         const adminId = (req as any).user?.id;
 
         // Update basic user details
         const user = await prisma.user.update({
             where: { id },
-            data: { name, phone, department }
+            data: { name, phone, department, accessScope }
         });
 
         // If technician, update technician details
@@ -190,6 +199,16 @@ export const updateUser = async (req: Request, res: Response) => {
                 where: { userId: id },
                 data: {
                     skillType,
+                    assignedArea
+                }
+            });
+        }
+
+        // If cleaner, update cleaner details
+        if (user.role === 'cleaner' && assignedArea) {
+            await prisma.cleaner.update({
+                where: { userId: id },
+                data: {
                     assignedArea
                 }
             });
@@ -288,7 +307,7 @@ export const searchGlobal = async (req: Request, res: Response) => {
 
 export const searchComplaints = async (req: Request, res: Response) => {
     try {
-        const { q, status, student, technician, asset } = req.query;
+        const { q, status, student, technician, asset, scope } = req.query;
         const query = String(q || '');
 
         const where: any = {};
@@ -302,6 +321,7 @@ export const searchComplaints = async (req: Request, res: Response) => {
         }
 
         if (status) where.status = String(status);
+        if (scope) where.scope = String(scope);
         if (student) where.student = { name: { contains: String(student), mode: 'insensitive' } };
         if (technician) where.technician = { name: { contains: String(technician), mode: 'insensitive' } };
         if (asset) where.asset = { name: { contains: String(asset), mode: 'insensitive' } };
@@ -353,6 +373,12 @@ export const getComplaintById = async (req: Request, res: Response) => {
 // Placeholder for other admin functions - these can be implemented as needed
 export const getAnalytics = async (req: Request, res: Response) => {
     try {
+        const { scope } = req.query;
+        const whereClause: any = {};
+        if (scope) {
+            whereClause.scope = String(scope);
+        }
+
         const [
             totalComplaints,
             activeComplaints,
@@ -360,19 +386,22 @@ export const getAnalytics = async (req: Request, res: Response) => {
             byStatus,
             bySeverity
         ] = await Promise.all([
-            prisma.complaint.count(),
-            prisma.complaint.count({ where: { status: { in: ['reported', 'assigned', 'in_progress'] } } }),
-            prisma.complaint.count({ where: { status: 'resolved' } }),
+            prisma.complaint.count({ where: whereClause }),
+            prisma.complaint.count({ where: { ...whereClause, status: { in: ['reported', 'assigned', 'in_progress'] } } }),
+            prisma.complaint.count({ where: { ...whereClause, status: 'resolved' } }),
             prisma.complaint.groupBy({
                 by: ['status'],
+                where: whereClause,
                 _count: true
             }),
             prisma.complaint.groupBy({
                 by: ['severity'],
+                where: whereClause,
                 _count: true
             })
         ]);
 
+        // ... (rest of the function is the same, just reconstructing the maps)
         const complaintsByStatus = byStatus.reduce((acc, curr) => {
             if (curr.status) {
                 acc[curr.status] = curr._count;

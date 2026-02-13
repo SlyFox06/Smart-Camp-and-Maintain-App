@@ -42,12 +42,12 @@ const NotificationBell = () => {
         <div className="relative" ref={dropdownRef}>
             <button
                 onClick={() => setIsOpen(!isOpen)}
-                className="relative p-2 rounded-full bg-[#0a0e27]/90 border border-[#00d4ff]/40 shadow-[0_0_15px_rgba(0,212,255,0.2)] hover:bg-[#00d4ff]/10 transition-all group"
+                className="relative p-2 rounded-full bg-white hover:bg-gray-100 text-gray-600 hover:text-blue-600 transition-colors border border-gray-200 shadow-sm"
                 title="Notifications"
             >
-                <Bell className="w-6 h-6 text-[#00D4FF] group-hover:drop-shadow-[0_0_8px_rgba(0,212,255,0.8)] transition-all" />
+                <Bell className="w-6 h-6" />
                 {unreadCount > 0 && (
-                    <span className="absolute top-0 right-0 w-5 h-5 bg-gradient-to-br from-[#FF00FF] to-[#EC4899] text-white text-xs font-bold rounded-full flex items-center justify-center border border-white/20 shadow-[0_0_12px_rgba(255,0,255,0.6)] animate-pulse">
+                    <span className="absolute top-0 right-0 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center border border-white">
                         {unreadCount > 9 ? '9+' : unreadCount}
                     </span>
                 )}

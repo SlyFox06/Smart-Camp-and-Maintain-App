@@ -1,8 +1,10 @@
 import { Routes, Route, useParams, Navigate } from 'react-router-dom';
 import LandingPage from './components/LandingPage';
 import StudentDashboard from './components/StudentDashboard';
+import HostelDashboard from './components/HostelDashboard';
 import TechnicianDashboard from './components/TechnicianDashboard';
 import AdminDashboard from './components/AdminDashboard';
+import WardenDashboard from './components/WardenDashboard';
 import Login from './components/auth/Login';
 import Signup from './components/auth/Signup';
 import ForgotPassword from './components/auth/ForgotPassword';
@@ -10,9 +12,10 @@ import ResetPassword from './components/auth/ResetPassword';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 import { AuthProvider } from './context/AuthProvider';
 import { useAuth } from './hooks/useAuth';
+import EmergencySOS from './components/EmergencySOS';
 
 function AppContent() {
-  const { user, logout, isLoading } = useAuth();
+  const { isLoading } = useAuth();
 
   if (isLoading) {
     return (
@@ -32,9 +35,20 @@ function AppContent() {
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
 
+        {/* Public Emergency Route - No Auth Required */}
+        <Route path="/sos" element={<EmergencySOS />} />
+        <Route path="/emergency" element={<EmergencySOS />} />
+
+
         <Route path="/student" element={
           <ProtectedRoute allowedRoles={['student']}>
             <StudentDashboard />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/hostel-student" element={
+          <ProtectedRoute allowedRoles={['student']}>
+            <HostelDashboard />
           </ProtectedRoute>
         } />
 
@@ -50,9 +64,21 @@ function AppContent() {
           </ProtectedRoute>
         } />
 
+        <Route path="/warden" element={
+          <ProtectedRoute allowedRoles={['warden']}>
+            <WardenDashboard />
+          </ProtectedRoute>
+        } />
+
         <Route path="/report/:assetId" element={
           <ProtectedRoute allowedRoles={['student']}>
             <QuickReportHandler />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/report-classroom/:classroomId" element={
+          <ProtectedRoute allowedRoles={['student']}>
+            <ClassroomReportHandler />
           </ProtectedRoute>
         } />
 
@@ -77,6 +103,18 @@ const QuickReportHandler = () => {
     <StudentDashboard
       prefilledAssetId={assetId}
       autoOpenForm={true}
+    />
+  );
+};
+
+const ClassroomReportHandler = () => {
+  const { classroomId } = useParams();
+
+  return (
+    <StudentDashboard
+      prefilledClassroomId={classroomId}
+      autoOpenForm={true}
+      scope="classroom"
     />
   );
 };

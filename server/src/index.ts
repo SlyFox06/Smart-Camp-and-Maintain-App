@@ -10,6 +10,8 @@ import assetRoutes from './routes/assetRoutes';
 import complaintRoutes from './routes/complaintRoutes';
 import notificationRoutes from './routes/notificationRoutes';
 import adminRoutes from './routes/adminRoutes';
+import roomRoutes from './routes/roomRoutes';
+import classroomRoutes from './routes/classroomRoutes';
 
 import prisma from './db/prisma';
 
@@ -43,6 +45,20 @@ try {
 }
 
 try {
+    app.use('/api/rooms', roomRoutes);
+    console.log('✅ Room routes loaded');
+} catch (error) {
+    console.error('❌ Failed to load Room routes:', error);
+}
+
+try {
+    app.use('/api/classrooms', classroomRoutes);
+    console.log('✅ Classroom routes loaded');
+} catch (error) {
+    console.error('❌ Failed to load Classroom routes:', error);
+}
+
+try {
     app.use('/api/complaints', complaintRoutes);
     console.log('✅ Complaint routes loaded');
 } catch (error) {
@@ -61,6 +77,27 @@ try {
     console.log('✅ Admin routes loaded');
 } catch (error) {
     console.error('❌ Failed to load Admin routes:', error);
+}
+
+try {
+    app.use('/api/cleaners', require('./routes/cleanerRoutes').default);
+    console.log('✅ Cleaner routes loaded');
+} catch (error) {
+    console.error('❌ Failed to load Cleaner routes:', error);
+}
+
+try {
+    app.use('/api/cleaning-tasks', require('./routes/cleaningTaskRoutes').default);
+    console.log('✅ Cleaning Task routes loaded');
+} catch (error) {
+    console.error('❌ Failed to load Cleaning Task routes:', error);
+}
+
+try {
+    app.use('/api/emergency', require('./routes/emergencyRoutes').default);
+    console.log('✅ Emergency routes loaded');
+} catch (error) {
+    console.error('❌ Failed to load Emergency routes:', error);
 }
 
 // Health Check

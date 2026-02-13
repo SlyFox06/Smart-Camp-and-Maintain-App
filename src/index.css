@@ -1,16 +1,16 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
-@import './styles/antigravity.css';
+
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  --gradient-success: linear-gradient(135deg, #10b981 0%, #059669 100%);
-  --gradient-warning: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
-  --gradient-danger: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-  --shadow-glow: 0 0 20px rgba(102, 126, 234, 0.3);
+  --primary-color: #2563eb;
+  --secondary-color: #475569;
+  --success-color: #10b981;
+  --danger-color: #ef4444;
+  --warning-color: #f59e0b;
 }
 
 * {
@@ -25,37 +25,40 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background-color: #f9fafb;
+  /* bg-gray-50 */
+  color: #1f2937;
+  /* text-gray-800 */
   min-height: 100vh;
 }
 
 @layer components {
   .glass-card {
-    @apply bg-white/10 backdrop-blur-lg border border-white/20 rounded-2xl shadow-2xl;
+    @apply bg-white border border-gray-200 rounded-2xl shadow-sm;
   }
 
   .glass-card-light {
-    @apply bg-white/95 backdrop-blur-lg border border-gray-200 rounded-2xl shadow-xl;
+    @apply bg-white border border-gray-200 rounded-2xl shadow-sm;
   }
 
   .btn-primary {
-    @apply px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold rounded-xl hover:from-blue-600 hover:to-purple-700 transform hover:scale-105 transition-all duration-300 shadow-lg hover:shadow-xl;
+    @apply px-6 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transform hover:scale-105 transition-all duration-300 shadow-md hover:shadow-lg;
   }
 
   .btn-secondary {
-    @apply px-6 py-3 bg-white/20 backdrop-blur-sm text-white font-semibold rounded-xl hover:bg-white/30 transform hover:scale-105 transition-all duration-300 border border-white/30;
+    @apply px-6 py-3 bg-white text-gray-700 font-semibold rounded-xl hover:bg-gray-50 transform hover:scale-105 transition-all duration-300 border border-gray-300 shadow-sm;
   }
 
   .btn-success {
-    @apply px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-semibold rounded-xl hover:from-green-600 hover:to-emerald-700 transform hover:scale-105 transition-all duration-300 shadow-lg hover:shadow-xl;
+    @apply px-6 py-3 bg-green-600 text-white font-semibold rounded-xl hover:bg-green-700 transform hover:scale-105 transition-all duration-300 shadow-md hover:shadow-lg;
   }
 
   .btn-danger {
-    @apply px-6 py-3 bg-gradient-to-r from-red-500 to-pink-600 text-white font-semibold rounded-xl hover:from-red-600 hover:to-pink-700 transform hover:scale-105 transition-all duration-300 shadow-lg hover:shadow-xl;
+    @apply px-6 py-3 bg-red-600 text-white font-semibold rounded-xl hover:bg-red-700 transform hover:scale-105 transition-all duration-300 shadow-md hover:shadow-lg;
   }
 
   .input-field {
-    @apply w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/30 rounded-xl text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-300;
+    @apply w-full px-4 py-3 bg-white border border-gray-300 rounded-xl text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300;
   }
 
   .input-field-light {
@@ -67,11 +70,11 @@ body {
   }
 
   .card-hover {
-    @apply transform hover:scale-105 hover:shadow-2xl transition-all duration-300 cursor-pointer;
+    @apply transform hover:scale-105 hover:shadow-lg transition-all duration-300 cursor-pointer;
   }
 
   .gradient-text {
-    @apply bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent;
+    @apply text-blue-600;
   }
 
   .animate-float {
@@ -86,14 +89,14 @@ body {
     }
 
     50% {
-      transform: translateY(-10px);
+      transform: translateY(-5px);
     }
   }
 
   .shimmer {
     background: linear-gradient(90deg,
         rgba(255, 255, 255, 0) 0%,
-        rgba(255, 255, 255, 0.2) 50%,
+        rgba(255, 255, 255, 0.5) 50%,
         rgba(255, 255, 255, 0) 100%);
     background-size: 200% 100%;
     animation: shimmer 2s infinite;
@@ -117,24 +120,25 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.1);
+  background: #f1f1f1;
   border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.3);
+  background: #c1c1c1;
   border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.5);
+  background: #a8a8a8;
 }
 
 /* Loading Animation */
 .loading-spinner {
-  border: 3px solid rgba(255, 255, 255, 0.3);
+  border: 3px solid rgba(59, 130, 246, 0.1);
   border-radius: 50%;
-  border-top: 3px solid white;
+  border-top: 3px solid #2563eb;
+  /* blue-600 */
   width: 40px;
   height: 40px;
   animation: spin 1s linear infinite;

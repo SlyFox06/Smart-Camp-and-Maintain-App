@@ -103,6 +103,15 @@ export const updateAvailability = async (req: Request, res: Response) => {
             data: { isAvailable }
         });
 
+        if (isAvailable) {
+            // Trigger retry for waiting assignments
+            const { retryWaitingAssignments } = require('../services/autoAssignmentService');
+            // Assuming we don't await this to keep response fast, or we await it. 
+            // It's better to await to catch errors, but logging inside function handles it.
+            // Let's await it.
+            await retryWaitingAssignments(userId, 'technician');
+        }
+
         res.json({ message: 'Availability updated', isAvailable: technician.isAvailable });
     } catch (error: any) {
         console.error('Update availability failed:', error);
@@ -146,7 +155,7 @@ export const changePassword = async (req: Request, res: Response) => {
 };
 
 export const createTechnician = async (req: Request, res: Response) => {
-    const { email, name, phone, skillType, assignedArea } = req.body;
+    const { email, name, phone, skillType, assignedArea, password } = req.body;
     const adminId = (req as any).user?.id;
 
     try {
@@ -158,7 +167,7 @@ export const createTechnician = async (req: Request, res: Response) => {
             return res.status(400).json({ message: 'User already exists' });
         }
 
-        const tempPassword = crypto.randomBytes(4).toString('hex');
+        const tempPassword = password || crypto.randomBytes(4).toString('hex');
         const hashedPassword = await bcrypt.hash(tempPassword, 10);
 
         const newUser = await prisma.user.create({
@@ -209,8 +218,71 @@ export const createTechnician = async (req: Request, res: Response) => {
     }
 };
 
+
+export const createCleaner = async (req: Request, res: Response) => {
+    const { email, name, phone, assignedArea, password } = req.body;
+    const adminId = (req as any).user?.id;
+
+    try {
+        const existingUser = await prisma.user.findUnique({
+            where: { email }
+        });
+
+        if (existingUser) {
+            return res.status(400).json({ message: 'User already exists' });
+        }
+
+        const tempPassword = password || crypto.randomBytes(4).toString('hex');
+        const hashedPassword = await bcrypt.hash(tempPassword, 10);
+
+        const newUser = await prisma.user.create({
+            data: {
+                email,
+                password: hashedPassword,
+                name,
+                role: 'cleaner',
+                phone,
+                department: 'Housekeeping',
+                isFirstLogin: true,
+                avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${name}`,
+            }
+        });
+
+        await prisma.cleaner.create({
+            data: {
+                userId: newUser.id,
+                assignedArea,
+                isAvailable: true
+            }
+        });
+
+        // AUDIT LOG
+        if (adminId) {
+            await prisma.auditLog.create({
+                data: {
+                    userId: adminId,
+                    action: 'CLEANER_REGISTERED',
+                    details: `Registered cleaner: ${name} (${email})`
+                }
+            });
+        }
+
+        // SEND EMAIL
+        await sendWelcomeEmail(email, name, tempPassword, 'Cleaner');
+
+        res.status(201).json({
+            message: 'Cleaner registered successfully and credentials sent to email',
+            cleaner: { id: newUser.id, email: newUser.email, name: newUser.name }
+        });
+
+    } catch (error: any) {
+        console.error('Create cleaner failed:', error);
+        res.status(500).json({ message: 'Cleaner registration failed', error: error.message });
+    }
+};
+
 export const createUser = async (req: Request, res: Response) => {
-    const { email, name, role, department, phone, password } = req.body;
+    const { email, name, role, department, phone, password, accessScope } = req.body;
     // If password provided, use it. If not, generate one.
     // Assuming if password is provided, we should send that. 
     // If not, we generate random.
@@ -241,7 +313,8 @@ export const createUser = async (req: Request, res: Response) => {
                 department,
                 phone,
                 avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${name}`,
-                isFirstLogin: true
+                isFirstLogin: true,
+                accessScope: accessScope || 'college'
             }
         });
 

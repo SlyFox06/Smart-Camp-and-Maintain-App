@@ -17,25 +17,26 @@ import { authenticate, authorize } from '../middleware/auth';
 
 const router = Router();
 
-// All routes require admin authentication
+// All routes require authentication
 const adminAuth = [authenticate, authorize(['admin'])];
+const wardenAuth = [authenticate, authorize(['admin', 'warden'])];
 
 // Dashboard & Analytics
 router.get('/dashboard', ...adminAuth, getAdminDashboard);
-router.get('/stats/overview', ...adminAuth, getOverviewStats);
-router.get('/analytics', ...adminAuth, getAnalytics);
+router.get('/stats/overview', ...wardenAuth, getOverviewStats);
+router.get('/analytics', ...wardenAuth, getAnalytics);
 router.get('/reports', ...adminAuth, getReports);
 router.get('/search', ...adminAuth, searchGlobal);
 
 // Data Management
-router.get('/users', ...adminAuth, getAllUsers);
-router.get('/complaints', ...adminAuth, getAllComplaints);
-router.get('/complaints/search', ...adminAuth, searchComplaints);
-router.get('/complaints/:id', ...adminAuth, getComplaintById);
+router.get('/users', ...wardenAuth, getAllUsers);
+router.get('/complaints', ...wardenAuth, getAllComplaints);
+router.get('/complaints/search', ...wardenAuth, searchComplaints);
+router.get('/complaints/:id', ...wardenAuth, getComplaintById);
 router.get('/assets', ...adminAuth, getAllAssets);
 
 // User Management
-router.put('/users/:id', ...adminAuth, updateUser);
-router.patch('/users/:id/status', ...adminAuth, toggleUserStatus);
+router.put('/users/:id', ...wardenAuth, updateUser);
+router.patch('/users/:id/status', ...wardenAuth, toggleUserStatus);
 
 export default router;

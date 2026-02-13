@@ -4,32 +4,44 @@ import api from '../../services/api';
 import type { User } from '../../types';
 
 interface UserManagementProps {
-    role: 'student' | 'technician';
+    role: 'student' | 'technician' | 'warden' | 'cleaner';
+    scope?: 'college' | 'hostel';
 }
 
-const UserManagement = ({ role }: UserManagementProps) => {
+const UserManagement = ({ role, scope }: UserManagementProps) => {
     const [users, setUsers] = useState<User[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
     const [editingUser, setEditingUser] = useState<User | null>(null);
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-    const [newUser, setNewUser] = useState({
+    const [newUser, setNewUser] = useState<{
+        name: string;
+        email: string;
+        phone: string;
+        department: string;
+        skillType: string;
+        assignedArea: string;
+        accessScope: 'college' | 'hostel' | 'both';
+    }>({
         name: '',
         email: '',
         phone: '',
         department: '',
         skillType: '',
-        assignedArea: ''
+        assignedArea: '',
+        accessScope: scope || 'college'
     });
 
     useEffect(() => {
         fetchUsers();
-    }, [role]);
+    }, [role, scope]);
 
     const fetchUsers = async () => {
         setIsLoading(true);
         try {
-            const response = await api.get('/admin/users', { params: { role } });
+            const params: any = { role };
+            if (scope) params.scope = scope;
+            const response = await api.get('/admin/users', { params });
             setUsers(response.data);
         } catch (error) {
             console.error('Failed to fetch users', error);
@@ -73,23 +85,34 @@ const UserManagement = ({ role }: UserManagementProps) => {
                     email: newUser.email,
                     phone: newUser.phone,
                     skillType: newUser.skillType,
-                    assignedArea: newUser.assignedArea
+                    assignedArea: newUser.assignedArea,
+                    password: (newUser as any).password
+                });
+            } else if (role === 'cleaner') {
+                response = await api.post('/auth/cleaners', {
+                    name: newUser.name,
+                    email: newUser.email,
+                    phone: newUser.phone,
+                    assignedArea: newUser.assignedArea,
+                    password: (newUser as any).password
                 });
             } else {
                 response = await api.post('/auth/users', {
                     name: newUser.name,
                     email: newUser.email,
                     phone: newUser.phone,
-                    department: newUser.department,
-                    role: 'student'
+                    department: role === 'warden' ? 'Hostel Administration' : newUser.department,
+                    role: role,
+                    accessScope: role === 'warden' ? 'hostel' : newUser.accessScope,
+                    password: (newUser as any).password
                 });
             }
 
             // Backend now sends email with auto-generated credentials
             alert(`User created successfully! Login credentials have been sent to ${newUser.email}`);
-            setUsers([...users, response.data.technician || response.data.user || response.data]);
+            setUsers([...users, response.data.technician || response.data.cleaner || response.data.user || response.data]);
             setIsAddModalOpen(false);
-            setNewUser({ name: '', email: '', phone: '', department: '', skillType: '', assignedArea: '' });
+            setNewUser({ name: '', email: '', phone: '', department: '', skillType: '', assignedArea: '', accessScope: scope || 'college' });
             fetchUsers(); // Refresh list to get full data
         } catch (error: any) {
             console.error('Failed to create user', error);
@@ -109,28 +132,28 @@ const UserManagement = ({ role }: UserManagementProps) => {
         <div className="space-y-4">
             <div className="flex justify-between items-center mb-4">
                 <div className="relative w-80 group">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#00D4FF] w-4 h-4 group-hover:drop-shadow-[0_0_5px_rgba(0,212,255,0.8)] transition-all" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
                     <input
                         type="text"
                         placeholder={`Search ${role}s...`}
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2 rounded-lg bg-[#0a0e27]/90 border border-[#00d4ff]/40 text-white placeholder-slate-400 focus:outline-none focus:border-[#00d4ff] shadow-[0_0_20px_rgba(0,212,255,0.1)] transition-all"
+                        className="w-full pl-10 pr-4 py-2 rounded-lg bg-white border border-gray-300 text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
                     />
                 </div>
                 <button
                     onClick={() => setIsAddModalOpen(true)}
-                    className="flex items-center gap-2 px-4 py-2 bg-gradient-to-br from-[#00D4FF] to-[#3B82F6] text-white rounded-lg shadow-[0_6px_20px_rgba(0,212,255,0.5),0_0_30px_rgba(0,212,255,0.3)] hover:scale-105 hover:brightness-110 transition-all font-medium backdrop-blur-sm"
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all font-medium shadow-sm"
                 >
                     <Plus className="w-4 h-4" />
-                    Add {role === 'student' ? 'Student' : 'Technician'}
+                    Add {role.charAt(0).toUpperCase() + role.slice(1)}
                 </button>
             </div>
 
-            <div className="rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] border border-[#00d4ff]/20 overflow-hidden backdrop-blur-md bg-[#0a0e27]/40">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm">
-                        <thead className="bg-[#0a0e27]/80 border-b-2 border-[#00d4ff]/30 text-[#00D4FF]">
+                        <thead className="bg-gray-50 border-b border-gray-200 text-gray-500">
                             <tr>
                                 <th className="px-6 py-4 font-semibold tracking-wide uppercase text-xs">Name</th>
                                 <th className="px-6 py-4 font-semibold tracking-wide uppercase text-xs">Details</th>
@@ -138,69 +161,82 @@ const UserManagement = ({ role }: UserManagementProps) => {
                                 <th className="px-6 py-4 font-semibold tracking-wide uppercase text-xs">Actions</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-[#00d4ff]/10">
+                        <tbody className="divide-y divide-gray-100">
                             {filteredUsers.map((user, index) => (
                                 <tr
                                     key={user.id}
-                                    className={`transition-all duration-300 hover:bg-[#00d4ff]/10 hover:shadow-[0_0_20px_rgba(0,212,255,0.15)] ${index % 2 === 0 ? 'bg-[#0f172a]/50' : 'bg-[#1a0b2e]/40'}`}
+                                    className={`transition-all duration-200 hover:bg-gray-50 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}
                                 >
-                                    <td className="px-6 py-4 border-b border-[#00d4ff]/10 text-slate-300">
+                                    <td className="px-6 py-4 text-gray-800">
                                         <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#00D4FF] to-[#9D4EDD] shadow-[0_4px_16px_rgba(0,212,255,0.4)] border-2 border-white/20 flex items-center justify-center text-white font-bold text-lg relative group">
-                                                <span className="relative z-10">{user.name.charAt(0)}</span>
-                                                <div className="absolute inset-0 rounded-full bg-white/20 blur-sm opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                                            <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-lg">
+                                                <span>{user.name.charAt(0)}</span>
                                             </div>
                                             <div>
-                                                <p className="font-medium text-white group-hover:text-[#00D4FF] transition-colors shadow-black drop-shadow-sm">{user.name}</p>
-                                                <p className="text-cyan-200/60 text-xs">{user.email}</p>
+                                                <p className="font-medium text-gray-900">{user.name}</p>
+                                                <p className="text-gray-500 text-xs">{user.email}</p>
                                             </div>
                                         </div>
                                     </td>
-                                    <td className="px-6 py-4 border-b border-[#00d4ff]/10 text-slate-300">
-                                        <p className="text-white/90">{user.phone || 'N/A'}</p>
-                                        <p className="text-cyan-200/50 text-xs mt-1 font-mono tracking-wider">
+                                    <td className="px-6 py-4 text-gray-600">
+                                        <p className="text-gray-800">{user.phone || 'N/A'}</p>
+                                        <p className="text-gray-500 text-xs mt-1 font-mono tracking-wider">
                                             {role === 'technician' ?
-                                                `${user.technician?.skillType} • ${user.technician?.assignedArea}` :
-                                                user.department}
+                                                `Skill: ${user.technician?.skillType} • Area: ${user.technician?.assignedArea}` :
+                                                role === 'cleaner' ?
+                                                    `Area: ${user.cleaner?.assignedArea}` :
+                                                    user.department}
                                         </p>
+                                        {role === 'student' && user.accessScope && (
+                                            <p className="text-xs text-blue-600 mt-1 capitalize">
+                                                Scope: {user.accessScope}
+                                            </p>
+                                        )}
                                     </td>
-                                    <td className="px-6 py-4 border-b border-[#00d4ff]/10">
+                                    <td className="px-6 py-4">
                                         {(() => {
                                             if (!user.isActive) {
                                                 return (
-                                                    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-red-500/20 text-red-400 border border-red-500/30 shadow-[0_0_12px_rgba(239,68,68,0.3)] backdrop-blur-sm">
+                                                    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-500 border border-gray-200">
                                                         Inactive
                                                     </span>
                                                 );
                                             }
                                             if (role === 'technician' && user.technician && !user.technician.isAvailable) {
                                                 return (
-                                                    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-[#9D4EDD]/20 text-[#9D4EDD] border border-[#9D4EDD]/40 shadow-[0_0_12px_rgba(157,78,221,0.3)] backdrop-blur-sm">
+                                                    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-yellow-100 text-yellow-700 border border-yellow-200">
+                                                        Unavailable
+                                                    </span>
+                                                );
+                                            }
+                                            if (role === 'cleaner' && user.cleaner && !user.cleaner.isAvailable) {
+                                                return (
+                                                    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-yellow-100 text-yellow-700 border border-yellow-200">
                                                         Unavailable
                                                     </span>
                                                 );
                                             }
                                             return (
-                                                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-green-500/20 text-green-400 border border-green-500/30 shadow-[0_0_12px_rgba(16,185,129,0.3)] backdrop-blur-sm">
+                                                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700 border border-green-200">
                                                     Active
                                                 </span>
                                             );
                                         })()}
                                     </td>
-                                    <td className="px-6 py-4 border-b border-[#00d4ff]/10">
+                                    <td className="px-6 py-4">
                                         <div className="flex gap-3">
                                             <button
                                                 onClick={() => setEditingUser(user)}
-                                                className="p-2 rounded-lg bg-[#00d4ff]/20 border border-[#00d4ff]/40 text-[#00D4FF] shadow-[0_0_10px_rgba(0,212,255,0.2)] hover:bg-[#00d4ff]/30 hover:shadow-[0_0_15px_rgba(0,212,255,0.4)] transition-all transform hover:scale-105"
+                                                className="p-2 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors"
                                                 title="Edit"
                                             >
                                                 <Edit2 className="w-4 h-4" />
                                             </button>
                                             <button
                                                 onClick={() => handleToggleStatus(user.id, user.isActive || false)}
-                                                className={`p-2 rounded-lg border transition-all transform hover:scale-105 ${user.isActive
-                                                    ? 'bg-red-500/20 border-red-500/40 text-red-400 hover:bg-red-500/30 shadow-[0_0_10px_rgba(239,68,68,0.2)]'
-                                                    : 'bg-green-500/20 border-green-500/40 text-green-400 hover:bg-green-500/30 shadow-[0_0_10px_rgba(34,197,94,0.2)]'}`}
+                                                className={`p-2 rounded-lg border transition-colors ${user.isActive
+                                                    ? 'text-red-600 hover:bg-red-50 border-transparent hover:border-red-200'
+                                                    : 'text-green-600 hover:bg-green-50 border-transparent hover:border-green-200'}`}
                                                 title={user.isActive ? 'Deactivate' : 'Activate'}
                                             >
                                                 {user.isActive ? <UserX className="w-4 h-4" /> : <UserCheck className="w-4 h-4" />}
@@ -218,10 +254,10 @@ const UserManagement = ({ role }: UserManagementProps) => {
             {isAddModalOpen && (
                 <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
                     <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                        <h3 className="text-lg font-bold mb-4">Add New {role === 'student' ? 'Student' : 'Technician'}</h3>
+                        <h3 className="text-lg font-bold mb-4 text-gray-900">Add New {role.charAt(0).toUpperCase() + role.slice(1)}</h3>
                         <form onSubmit={handleAddUser} className="space-y-4">
                             <div>
-                                <label className="block text-sm font-medium mb-1">Name</label>
+                                <label className="block text-sm font-medium mb-1 text-gray-700">Name</label>
                                 <input
                                     type="text"
                                     required
@@ -232,7 +268,7 @@ const UserManagement = ({ role }: UserManagementProps) => {
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium mb-1">Email</label>
+                                <label className="block text-sm font-medium mb-1 text-gray-700">Email</label>
                                 <input
                                     type="email"
                                     required
@@ -244,7 +280,7 @@ const UserManagement = ({ role }: UserManagementProps) => {
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm font-medium mb-1">Phone</label>
+                                    <label className="block text-sm font-medium mb-1 text-gray-700">Phone</label>
                                     <input
                                         type="tel"
                                         value={newUser.phone}
@@ -254,35 +290,72 @@ const UserManagement = ({ role }: UserManagementProps) => {
                                     />
                                 </div>
                                 {role === 'student' ? (
-                                    <div>
-                                        <label className="block text-sm font-medium mb-1">Department</label>
-                                        <input
-                                            type="text"
-                                            required
-                                            value={newUser.department}
-                                            onChange={e => setNewUser({ ...newUser, department: e.target.value })}
-                                            className="input-field-light"
-                                            placeholder="e.g. CS, EE"
-                                        />
-                                    </div>
+                                    <>
+                                        <div>
+                                            <label className="block text-sm font-medium mb-1 text-gray-700">Department</label>
+                                            <input
+                                                type="text"
+                                                required
+                                                value={newUser.department}
+                                                onChange={e => setNewUser({ ...newUser, department: e.target.value })}
+                                                className="input-field-light"
+                                                placeholder="e.g. CS, EE"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium mb-1 text-gray-700">Access Scope</label>
+                                            <select
+                                                value={newUser.accessScope}
+                                                onChange={e => setNewUser({ ...newUser, accessScope: e.target.value as any })}
+                                                className="input-field-light"
+                                            >
+                                                <option value="college">College Only</option>
+                                                <option value="hostel">Hostel Only</option>
+                                                <option value="both">Both (College & Hostel)</option>
+                                            </select>
+                                        </div>
+                                    </>
                                 ) : (
                                     <div>
-                                        <label className="block text-sm font-medium mb-1">Skill Type</label>
-                                        <input
-                                            type="text"
+                                        <label className="block text-sm font-medium mb-1 text-gray-700">Skill Type</label>
+                                        <select
                                             required
                                             value={newUser.skillType}
                                             onChange={e => setNewUser({ ...newUser, skillType: e.target.value })}
                                             className="input-field-light"
-                                            placeholder="e.g. Electrical"
+                                        >
+                                            <option value="">Select Skill</option>
+                                            <option value="Electrician">Electrician</option>
+                                            <option value="Plumber">Plumber</option>
+                                            <option value="Maintenance Technician">Maintenance Technician</option>
+                                            <option value="IT Technician">IT Technician</option>
+                                        </select>
+                                    </div>
+                                )}
+                                {role === 'cleaner' && (
+                                    <div>
+                                        <label className="block text-sm font-medium mb-1 text-gray-700">Assigned Area</label>
+                                        <input
+                                            type="text"
+                                            value={newUser.assignedArea}
+                                            onChange={e => setNewUser({ ...newUser, assignedArea: e.target.value })}
+                                            className="input-field-light"
+                                            placeholder="e.g. Building A"
                                         />
                                     </div>
                                 )}
                             </div>
+                            {role === 'warden' && (
+                                <div className="mt-4">
+                                    <p className="text-sm text-gray-500 italic">
+                                        Wardens are automatically assigned to the "Hostel Administration" department and "Hostel" access scope.
+                                    </p>
+                                </div>
+                            )}
 
                             {role === 'technician' && (
                                 <div>
-                                    <label className="block text-sm font-medium mb-1">Assigned Area</label>
+                                    <label className="block text-sm font-medium mb-1 text-gray-700">Assigned Area</label>
                                     <input
                                         type="text"
                                         value={newUser.assignedArea}
@@ -293,15 +366,27 @@ const UserManagement = ({ role }: UserManagementProps) => {
                                 </div>
                             )}
 
-                            <div className="bg-blue-50 p-3 rounded-lg text-sm text-blue-700">
-                                <p>A random password will be generated and sent to the user's email.</p>
+                            <div className="mt-4">
+                                <label className="block text-sm font-medium mb-1 text-gray-700">Password</label>
+                                <input
+                                    type="password"
+                                    value={(newUser as any).password || ''}
+                                    onChange={e => setNewUser({ ...newUser, password: e.target.value } as any)}
+                                    className="input-field-light"
+                                    placeholder="Leave empty for auto-generated"
+                                />
+                            </div>
+
+
+                            <div className="bg-blue-50 p-3 rounded-lg text-sm text-blue-700 border border-blue-100 mt-4">
+                                <p>If password is left empty, a random one will be generated and sent to email.</p>
                             </div>
 
                             <div className="flex justify-end gap-3 mt-6">
                                 <button
                                     type="button"
                                     onClick={() => setIsAddModalOpen(false)}
-                                    className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+                                    className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
                                 >
                                     Cancel
                                 </button>
@@ -311,92 +396,128 @@ const UserManagement = ({ role }: UserManagementProps) => {
                             </div>
                         </form>
                     </div>
-                </div>
+                </div >
             )}
 
             {/* Edit Modal */}
-            {editingUser && (
-                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
-                        <h3 className="text-lg font-bold mb-4">Edit {role === 'student' ? 'Student' : 'Technician'}</h3>
-                        <form onSubmit={handleUpdateUser} className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium mb-1">Name</label>
-                                <input
-                                    type="text"
-                                    value={editingUser.name}
-                                    onChange={e => setEditingUser({ ...editingUser, name: e.target.value })}
-                                    className="input-field-light"
-                                />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
+            {
+                editingUser && (
+                    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                        <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
+                            <h3 className="text-lg font-bold mb-4 text-gray-900">Edit {role.charAt(0).toUpperCase() + role.slice(1)}</h3>
+                            <form onSubmit={handleUpdateUser} className="space-y-4">
                                 <div>
-                                    <label className="block text-sm font-medium mb-1">Phone</label>
+                                    <label className="block text-sm font-medium mb-1 text-gray-700">Name</label>
                                     <input
                                         type="text"
-                                        value={editingUser.phone || ''}
-                                        onChange={e => setEditingUser({ ...editingUser, phone: e.target.value })}
+                                        value={editingUser.name}
+                                        onChange={e => setEditingUser({ ...editingUser, name: e.target.value })}
                                         className="input-field-light"
                                     />
                                 </div>
-                                <div>
-                                    <label className="block text-sm font-medium mb-1">Department</label>
-                                    <input
-                                        type="text"
-                                        value={editingUser.department || ''}
-                                        onChange={e => setEditingUser({ ...editingUser, department: e.target.value })}
-                                        className="input-field-light"
-                                        disabled={role === 'technician'}
-                                    />
-                                </div>
-                            </div>
-
-                            {role === 'technician' && editingUser.technician && (
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-sm font-medium mb-1">Skill Type</label>
+                                        <label className="block text-sm font-medium mb-1 text-gray-700">Phone</label>
                                         <input
                                             type="text"
-                                            value={editingUser.technician.skillType}
-                                            onChange={e => setEditingUser({
-                                                ...editingUser,
-                                                technician: { ...editingUser.technician!, skillType: e.target.value }
-                                            })}
+                                            value={editingUser.phone || ''}
+                                            onChange={e => setEditingUser({ ...editingUser, phone: e.target.value })}
                                             className="input-field-light"
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium mb-1">Assigned Area</label>
+                                        <label className="block text-sm font-medium mb-1 text-gray-700">Department</label>
                                         <input
                                             type="text"
-                                            value={editingUser.technician.assignedArea || ''}
+                                            value={editingUser.department || ''}
+                                            onChange={e => setEditingUser({ ...editingUser, department: e.target.value })}
+                                            className="input-field-light"
+                                            disabled={role === 'technician'}
+                                        />
+                                    </div>
+                                </div>
+
+                                {role === 'student' && (
+                                    <div className="mt-4">
+                                        <label className="block text-sm font-medium mb-1 text-gray-700">Access Scope</label>
+                                        <select
+                                            value={editingUser.accessScope || 'college'}
+                                            onChange={e => setEditingUser({ ...editingUser, accessScope: e.target.value as any })}
+                                            className="input-field-light"
+                                        >
+                                            <option value="college">College Only</option>
+                                            <option value="hostel">Hostel Only</option>
+                                            <option value="both">Both (College & Hostel)</option>
+                                        </select>
+                                    </div>
+                                )}
+
+                                {role === 'technician' && editingUser.technician && (
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-sm font-medium mb-1 text-gray-700">Skill Type</label>
+                                            <select
+                                                value={editingUser.technician.skillType}
+                                                onChange={e => setEditingUser({
+                                                    ...editingUser,
+                                                    technician: { ...editingUser.technician!, skillType: e.target.value }
+                                                })}
+                                                className="input-field-light"
+                                            >
+                                                <option value="Electrician">Electrician</option>
+                                                <option value="Plumber">Plumber</option>
+                                                <option value="Maintenance Technician">Maintenance Technician</option>
+                                                <option value="IT Technician">IT Technician</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium mb-1 text-gray-700">Assigned Area</label>
+                                            <input
+                                                type="text"
+                                                value={editingUser.technician.assignedArea || ''}
+                                                onChange={e => setEditingUser({
+                                                    ...editingUser,
+                                                    technician: { ...editingUser.technician!, assignedArea: e.target.value }
+                                                })}
+                                                className="input-field-light"
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+
+                                {role === 'cleaner' && editingUser.cleaner && (
+                                    <div>
+                                        <label className="block text-sm font-medium mb-1 text-gray-700">Assigned Area</label>
+                                        <input
+                                            type="text"
+                                            value={editingUser.cleaner.assignedArea}
                                             onChange={e => setEditingUser({
                                                 ...editingUser,
-                                                technician: { ...editingUser.technician!, assignedArea: e.target.value }
+                                                cleaner: { ...editingUser.cleaner!, assignedArea: e.target.value }
                                             })}
                                             className="input-field-light"
                                         />
                                     </div>
-                                </div>
-                            )}
+                                )}
 
-                            <div className="flex justify-end gap-3 mt-6">
-                                <button
-                                    type="button"
-                                    onClick={() => setEditingUser(null)}
-                                    className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
-                                >
-                                    Cancel
-                                </button>
-                                <button type="submit" className="btn-primary">
-                                    Save Changes
-                                </button>
-                            </div>
-                        </form>
+                                <div className="flex justify-end gap-3 mt-6">
+                                    <button
+                                        type="button"
+                                        onClick={() => setEditingUser(null)}
+                                        className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button type="submit" className="btn-primary">
+                                        Save Changes
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
                     </div>
-                </div>
-            )}
-        </div>
+                )
+            }
+        </div >
     );
 };
 

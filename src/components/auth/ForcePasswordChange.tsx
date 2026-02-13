@@ -9,7 +9,7 @@ export const ForcePasswordChange = () => {
     const [confirmPassword, setConfirmPassword] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const { user, login } = useAuth(); // Assuming we re-login or update user state
+    const { user } = useAuth(); // Assuming we re-login or update user state
     const navigate = useNavigate();
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -48,7 +48,7 @@ export const ForcePasswordChange = () => {
 
     return (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
                 <div className="bg-amber-500 p-6 text-center">
                     <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4 backdrop-blur-sm">
                         <ShieldCheck className="w-8 h-8 text-white" />
@@ -67,7 +67,7 @@ export const ForcePasswordChange = () => {
 
                         <div className="space-y-4">
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
                                     New Password
                                 </label>
                                 <div className="relative">
@@ -78,14 +78,14 @@ export const ForcePasswordChange = () => {
                                         minLength={6}
                                         value={password}
                                         onChange={(e) => setPassword(e.target.value)}
-                                        className="w-full pl-10 pr-4 py-2 rounded-lg border dark:bg-slate-700 dark:border-slate-600 dark:text-white focus:ring-2 focus:ring-amber-500"
+                                        className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-amber-500 outline-none"
                                         placeholder="Min. 6 characters"
                                     />
                                 </div>
                             </div>
 
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
                                     Confirm New Password
                                 </label>
                                 <div className="relative">
@@ -96,7 +96,7 @@ export const ForcePasswordChange = () => {
                                         minLength={6}
                                         value={confirmPassword}
                                         onChange={(e) => setConfirmPassword(e.target.value)}
-                                        className="w-full pl-10 pr-4 py-2 rounded-lg border dark:bg-slate-700 dark:border-slate-600 dark:text-white focus:ring-2 focus:ring-amber-500"
+                                        className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-amber-500 outline-none"
                                         placeholder="Confirm password"
                                     />
                                 </div>

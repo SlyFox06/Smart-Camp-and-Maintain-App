@@ -1,0 +1,15 @@
+
+model Emergency {
+  id              String         @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  type            String         @db.VarChar(50)
+  location        String
+  description     String?
+  status          String         @default("triggered") @db.VarChar(50)
+  reportedAt      DateTime       @default(now()) @map("reported_at") @db.Timestamptz(6)
+  respondedAt     DateTime?      @map("responded_at") @db.Timestamptz(6)
+  resolvedAt      DateTime?      @map("resolved_at") @db.Timestamptz(6)
+  notifications   Notification[]
+  
+  @@index([status], map: "idx_emergencies_status")
+  @@map("emergencies")
+}

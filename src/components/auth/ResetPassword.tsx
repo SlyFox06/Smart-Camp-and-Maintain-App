@@ -42,7 +42,7 @@ const ResetPassword = () => {
 
     if (!token) {
         return (
-            <div className="min-h-screen bg-gradient-to-br from-indigo-600 to-purple-700 flex items-center justify-center p-4">
+            <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
                 <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-8 text-center">
                     <h2 className="text-xl font-bold text-red-600 mb-4">Invalid Link</h2>
                     <p className="text-gray-600 mb-6">This password reset link is invalid or missing a token.</p>
@@ -55,7 +55,7 @@ const ResetPassword = () => {
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-indigo-600 to-purple-700 flex items-center justify-center p-4">
+        <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
                 <div className="p-8">
                     <div className="text-center mb-8">

@@ -7,23 +7,43 @@ import { classifySeverity, getCurrentLocation, isValidImageFile, isValidVideoFil
 interface ComplaintFormProps {
     onClose: () => void;
     prefilledAssetId?: string;
+    prefilledRoomId?: string;
+    prefilledClassroomId?: string;
+    scope?: 'college' | 'hostel' | 'classroom';
 }
 
-const ComplaintForm = ({ onClose, prefilledAssetId }: ComplaintFormProps) => {
+const ComplaintForm = ({ onClose, prefilledAssetId, prefilledRoomId, prefilledClassroomId, scope }: ComplaintFormProps) => {
     const [assets, setAssets] = useState<Asset[]>([]);
     const [assetId, setAssetId] = useState(prefilledAssetId || '');
+    const [roomId, setRoomId] = useState(prefilledRoomId || '');
+    const [classroomId, setClassroomId] = useState(prefilledClassroomId || '');
+    const [classroomInfo, setClassroomInfo] = useState<any>(null);
     const [title, setTitle] = useState('');
     const [description, setDescription] = useState('');
+    const [category, setCategory] = useState<string>('');
     const [images, setImages] = useState<File[]>([]);
     const [video, setVideo] = useState<File | null>(null);
     const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [error, setError] = useState('');
     const [activeComplaint, setActiveComplaint] = useState<any>(null);
-    const [isCheckingAsset, setIsCheckingAsset] = useState(false);
 
     const imageInputRef = useRef<HTMLInputElement>(null);
     const videoInputRef = useRef<HTMLInputElement>(null);
+
+    // Fetch classroom info if classroomId is provided
+    useEffect(() => {
+        const fetchClassroomInfo = async () => {
+            if (!classroomId) return;
+            try {
+                const response = await api.get(`/classrooms/${classroomId}`);
+                setClassroomInfo(response.data);
+            } catch (err) {
+                console.error('Failed to fetch classroom info', err);
+            }
+        };
+        fetchClassroomInfo();
+    }, [classroomId]);
 
     useEffect(() => {
         const fetchAssets = async () => {
@@ -45,7 +65,6 @@ const ComplaintForm = ({ onClose, prefilledAssetId }: ComplaintFormProps) => {
                 return;
             }
 
-            setIsCheckingAsset(true);
             try {
                 const response = await api.get(`/assets/${assetId}/active-complaint`);
                 if (response.data) {
@@ -55,14 +74,19 @@ const ComplaintForm = ({ onClose, prefilledAssetId }: ComplaintFormProps) => {
                 }
             } catch (err) {
                 setActiveComplaint(null);
-            } finally {
-                setIsCheckingAsset(false);
             }
         };
         checkAssetStatus();
     }, [assetId]);
 
     const selectedAsset = assets.find(a => a.id === assetId);
+
+    // Auto-detect scope based on asset details if not explicitly provided
+    const effectiveScope = scope || (selectedAsset && (
+        selectedAsset.building.toLowerCase().includes('hostel') ||
+        selectedAsset.department.toLowerCase().includes('hostel')
+    ) ? 'hostel' : 'college');
+
     const predictedSeverity = title && description ? classifySeverity(title, description) : null;
 
     const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -106,13 +130,21 @@ const ComplaintForm = ({ onClose, prefilledAssetId }: ComplaintFormProps) => {
         e.preventDefault();
         setError('');
 
-        if (!assetId) {
-            setError('Please select an asset');
+        // Validation: Must have at least one of assetId, roomId, or classroomId
+        if (!assetId && !roomId && !classroomId) {
+            setError('Please select an asset, room, or classroom');
+            return;
+        }
+
+        // Category is required for hostel and classroom scopes
+        if ((effectiveScope === 'hostel' || effectiveScope === 'classroom') && !category) {
+            setError('Please select a problem category');
             return;
         }
 
         if (!title || !description) {
             setError('Please fill in all required fields');
+            return;
         }
 
         if (images.length === 0) {
@@ -136,13 +168,17 @@ const ComplaintForm = ({ onClose, prefilledAssetId }: ComplaintFormProps) => {
             const imageUrls = await Promise.all(images.map(image => convertToBase64(image)));
 
             await api.post('/complaints', {
-                assetId,
+                assetId: assetId || null,
+                roomId: roomId || null,
+                classroomId: classroomId || null,
                 title,
                 description,
                 severity: predictedSeverity || 'medium',
                 images: imageUrls,
                 video: video ? 'https://example.com/video.mp4' : null,
-                location
+                location,
+                scope: effectiveScope,
+                category: (effectiveScope === 'hostel' || effectiveScope === 'classroom') ? category : null
             });
 
             alert('Complaint submitted successfully! 🎉');
@@ -193,35 +229,100 @@ const ComplaintForm = ({ onClose, prefilledAssetId }: ComplaintFormProps) => {
                         </div>
                     )}
 
-                    {/* Asset Selection */}
-                    <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">
-                            Select Asset <span className="text-red-500">*</span>
-                        </label>
-                        <select
-                            value={assetId}
-                            onChange={(e) => setAssetId(e.target.value)}
-                            className="input-field-light"
-                            required
-                        >
-                            <option value="">Choose an asset...</option>
-                            {assets.map(asset => (
-                                <option key={asset.id} value={asset.id}>
-                                    {asset.name} - {asset.building} {asset.room}
-                                </option>
-                            ))}
-                        </select>
-                        {selectedAsset && (
-                            <div className="mt-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                                <p className="text-sm text-blue-900">
-                                    <strong>Location:</strong> {selectedAsset.building}, Floor {selectedAsset.floor}, Room {selectedAsset.room}
-                                </p>
-                                <p className="text-sm text-blue-900">
-                                    <strong>Type:</strong> {selectedAsset.type.replace('_', ' ').toUpperCase()}
-                                </p>
+                    {/* Asset Selection - Only show if not a classroom complaint */}
+                    {!classroomId && (
+                        <div>
+                            <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                Select Asset <span className="text-red-500">*</span>
+                            </label>
+                            <select
+                                value={assetId}
+                                onChange={(e) => setAssetId(e.target.value)}
+                                className="input-field-light"
+                                required
+                            >
+                                <option value="">Choose an asset...</option>
+                                {assets.map(asset => (
+                                    <option key={asset.id} value={asset.id}>
+                                        {asset.name} - {asset.building} {asset.room}
+                                    </option>
+                                ))}
+                            </select>
+                            {selectedAsset && (
+                                <div className="mt-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                                    <p className="text-sm text-blue-900">
+                                        <strong>Location:</strong> {selectedAsset.building}, Floor {selectedAsset.floor}, Room {selectedAsset.room}
+                                    </p>
+                                    <p className="text-sm text-blue-900">
+                                        <strong>Type:</strong> {selectedAsset.type.replace('_', ' ').toUpperCase()}
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Category Selection for Hostel */}
+                    {effectiveScope === 'hostel' && (
+                        <div>
+                            <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                Problem Category <span className="text-red-500">*</span>
+                            </label>
+                            <div className="grid grid-cols-3 gap-3">
+                                {['Electrical', 'Furniture', 'Plumbing', 'Wifi', 'Other'].map((cat) => (
+                                    <button
+                                        key={cat}
+                                        type="button"
+                                        onClick={() => setCategory(cat)}
+                                        className={`p-3 rounded-lg border text-sm font-medium transition-all ${category === cat
+                                            ? 'bg-orange-100 border-orange-500 text-orange-700 shadow-sm'
+                                            : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                                            }`}
+                                    >
+                                        {cat}
+                                    </button>
+                                ))}
                             </div>
-                        )}
-                    </div>
+                        </div>
+                    )}
+
+                    {/* Classroom Info Display */}
+                    {classroomInfo && (
+                        <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                            <p className="text-sm text-blue-900 font-semibold mb-1">
+                                📍 {classroomInfo.name}
+                            </p>
+                            <p className="text-sm text-blue-800">
+                                {classroomInfo.building}, Floor {classroomInfo.floor}, Room {classroomInfo.roomNumber}
+                            </p>
+                            <p className="text-sm text-blue-700">
+                                Department: {classroomInfo.department}
+                            </p>
+                        </div>
+                    )}
+
+                    {/* Category Selection for Classroom */}
+                    {effectiveScope === 'classroom' && (
+                        <div>
+                            <label className="block text-sm font-semibold text-gray-700 mb-2">
+                                Issue Category <span className="text-red-500">*</span>
+                            </label>
+                            <div className="grid grid-cols-3 gap-3">
+                                {['Electrical', 'Furniture', 'Plumbing', 'IT/Network', 'Cleanliness', 'Other'].map((cat) => (
+                                    <button
+                                        key={cat}
+                                        type="button"
+                                        onClick={() => setCategory(cat)}
+                                        className={`p-3 rounded-lg border text-sm font-medium transition-all ${category === cat
+                                            ? 'bg-blue-100 border-blue-500 text-blue-700 shadow-sm'
+                                            : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                                            }`}
+                                    >
+                                        {cat}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
 
                     {/* Title */}
                     <div>
@@ -232,7 +333,7 @@ const ComplaintForm = ({ onClose, prefilledAssetId }: ComplaintFormProps) => {
                             type="text"
                             value={title}
                             onChange={(e) => setTitle(e.target.value)}
-                            placeholder="e.g., Projector not displaying properly"
+                            placeholder={effectiveScope === 'hostel' ? "e.g., Fan regulator broken" : "e.g., Projector not displaying properly"}
                             className="input-field-light"
                             required
                         />

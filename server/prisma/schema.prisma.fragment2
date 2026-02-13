@@ -1,0 +1,19 @@
+
+model Notification {
+  id                 String     @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId             String     @map("user_id") @db.Uuid
+  title              String     @db.VarChar(255)
+  message            String
+  type               String     @db.VarChar(50)
+  isRead             Boolean?   @default(false) @map("is_read")
+  relatedComplaintId String?    @map("related_complaint_id") @db.Uuid
+  relatedEmergencyId String?    @map("related_emergency_id") @db.Uuid
+  createdAt          DateTime?  @default(now()) @map("created_at") @db.Timestamptz(6)
+  relatedComplaint   Complaint? @relation(fields: [relatedComplaintId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  relatedEmergency   Emergency? @relation(fields: [relatedEmergencyId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user               User       @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([userId, isRead], map: "idx_notifications_unread")
+  @@index([userId], map: "idx_notifications_user")
+  @@map("notifications")
+}

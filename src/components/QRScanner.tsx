@@ -5,32 +5,69 @@ import QrScanner from 'qr-scanner';
 
 interface QRScannerProps {
     onClose: () => void;
+    onScan?: (data: string) => void;
 }
 
-const QRScanner = ({ onClose }: QRScannerProps) => {
+const QRScanner = ({ onClose, onScan }: QRScannerProps) => {
     const navigate = useNavigate();
     const videoRef = useRef<HTMLVideoElement>(null);
     const [scanError, setScanError] = useState<string | null>(null);
     const [hasPermission, setHasPermission] = useState<boolean | null>(null);
     const scannerRef = useRef<QrScanner | null>(null);
 
+    // This reference is needed to access the latest handleScan closure in the QrScanner callback
+    // or just defined handleScan before useEffect or inside it.
+    // However, QrScanner constructor takes a callback.
+
+    const handleScanRef = useRef((_result: QrScanner.ScanResult) => { });
+
+    useEffect(() => {
+        handleScanRef.current = (result: QrScanner.ScanResult) => {
+            const data = result.data;
+            if (!data) return;
+
+            let assetId = '';
+
+            try {
+                const json = JSON.parse(data);
+                assetId = json.assetId || json.id || '';
+            } catch (e) {
+                if (data.includes('/report/')) {
+                    assetId = data.split('/report/')[1].split('?')[0];
+                } else if (data.includes('assetId=')) {
+                    assetId = data.split('assetId=')[1].split('&')[0];
+                } else {
+                    if (data.length > 2 && !data.includes(' ')) {
+                        assetId = data;
+                    }
+                }
+            }
+
+            if (assetId) {
+                scannerRef.current?.stop();
+                if (onScan) {
+                    onScan(assetId);
+                } else {
+                    navigate(`/report/${assetId}`);
+                }
+                onClose();
+            }
+        };
+    }, [onScan, navigate, onClose]);
+
+
     useEffect(() => {
         const initializeScanner = async () => {
-            // Check removed to allow browser to handle permission request directly
-
-
-            // 2. Check for Camera Hardware
             const hasCamera = await QrScanner.hasCamera();
             if (!hasCamera) {
                 setScanError('No camera found on this device.');
                 return;
             }
 
-            // 3. Start Scanner
             if (videoRef.current) {
                 scannerRef.current = new QrScanner(
                     videoRef.current,
-                    (result) => handleScan(result),
+                    (result) => handleScanRef.current(result),
                     {
                         returnDetailedScanResult: true,
                         highlightScanRegion: true,
@@ -61,37 +98,6 @@ const QRScanner = ({ onClose }: QRScannerProps) => {
         };
     }, []);
 
-    const handleScan = (result: QrScanner.ScanResult) => {
-        const data = result.data;
-        if (!data) return;
-
-        let assetId = '';
-
-        try {
-            const json = JSON.parse(data);
-            // Handle simple { assetId: "..." } or { id: "..." }
-            assetId = json.assetId || json.id || '';
-        } catch (e) {
-            // String parsing
-            if (data.includes('/report/')) {
-                assetId = data.split('/report/')[1].split('?')[0];
-            } else if (data.includes('assetId=')) {
-                assetId = data.split('assetId=')[1].split('&')[0];
-            } else {
-                // Determine if it's a UUID or simple ID (alphanumeric check)
-                if (data.length > 2 && !data.includes(' ')) {
-                    assetId = data;
-                }
-            }
-        }
-
-        if (assetId) {
-            scannerRef.current?.stop();
-            navigate(`/report/${assetId}`);
-            onClose();
-        }
-    };
-
     const handleRetry = () => {
         setScanError(null);
         setHasPermission(null);
@@ -105,23 +111,22 @@ const QRScanner = ({ onClose }: QRScannerProps) => {
                     setScanError('Retry failed: ' + (err.message || 'Unknown error'));
                 });
         } else {
-            // If scanner not initialized (e.g. secure context error), try full re-init or reload
             window.location.reload();
         }
     };
 
     return (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4">
-            <div className="bg-white/10 backdrop-blur-lg border border-white/20 max-w-lg w-full relative overflow-hidden rounded-3xl shadow-2xl">
+            <div className="bg-white max-w-lg w-full relative overflow-hidden rounded-3xl shadow-2xl">
                 {/* Header */}
-                <div className="p-5 flex items-center justify-between z-10 relative bg-black/20">
-                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                        <QrCode className="w-6 h-6 text-blue-400" />
+                <div className="p-5 flex items-center justify-between z-10 relative bg-white border-b border-gray-100">
+                    <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                        <QrCode className="w-6 h-6 text-blue-600" />
                         Scan QR Code
                     </h2>
                     <button
                         onClick={onClose}
-                        className="p-2 hover:bg-white/10 rounded-full transition-colors text-white/80 hover:text-white"
+                        className="p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-500 hover:text-gray-900"
                     >
                         <X className="w-6 h-6" />
                     </button>

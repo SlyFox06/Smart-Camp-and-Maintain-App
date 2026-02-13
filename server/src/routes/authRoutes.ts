@@ -5,6 +5,7 @@ import {
     changePassword,
     createUser,
     createTechnician,
+    createCleaner,
     updateAvailability,
     forgotPassword,
     resetPassword
@@ -21,6 +22,7 @@ router.patch('/availability', authenticate, authorize(['technician']), updateAva
 // Admin only routes
 router.post('/users', authenticate, authorize(['admin']), createUser);
 router.post('/technicians', authenticate, authorize(['admin']), createTechnician);
+router.post('/cleaners', authenticate, authorize(['admin']), createCleaner);
 
 // Password Reset Routes
 router.post('/forgot-password', forgotPassword);

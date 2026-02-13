@@ -3,7 +3,23 @@ import prisma from '../db/prisma';
 
 export const getAllAssets = async (req: Request, res: Response) => {
     try {
+        const { scope } = req.query;
+        const whereClause: any = {};
+
+        if (scope === 'hostel') {
+            whereClause.OR = [
+                { building: { contains: 'Hostel', mode: 'insensitive' } },
+                { department: { contains: 'Hostel', mode: 'insensitive' } }
+            ];
+        } else if (scope === 'college') {
+            whereClause.AND = [
+                { NOT: { building: { contains: 'Hostel', mode: 'insensitive' } } },
+                { NOT: { department: { contains: 'Hostel', mode: 'insensitive' } } }
+            ];
+        }
+
         const assets = await prisma.asset.findMany({
+            where: whereClause,
             include: {
                 complaints: {
                     where: { status: { in: ['reported', 'assigned', 'in_progress'] } }

@@ -1,36 +1,43 @@
 import { useState, useEffect } from 'react';
-import { Plus, QrCode, Clock, CheckCircle, AlertCircle, Search, Filter } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import { Plus, QrCode, Clock, CheckCircle, AlertCircle, Search, Filter, Home, LogOut } from 'lucide-react';
 import type { Complaint, ComplaintStatus } from '../types';
 import api from '../services/api';
 import { useAuth } from '../hooks/useAuth';
-import { formatDate, getTimeDifference, getStatusBadgeStyle, getSeverityBadgeStyle } from '../utils/helpers';
+import { getTimeDifference, getStatusBadgeStyle, getSeverityBadgeStyle } from '../utils/helpers';
 import ComplaintForm from './ComplaintForm';
 import ComplaintDetails from './ComplaintDetails';
 import QRScanner from './QRScanner';
 import NotificationBell from './common/NotificationBell';
 
-interface StudentDashboardProps {
+interface HostelDashboardProps {
     prefilledAssetId?: string;
-    prefilledClassroomId?: string;
     autoOpenForm?: boolean;
-    scope?: 'college' | 'hostel' | 'classroom';
 }
 
-const StudentDashboard = ({ prefilledAssetId, prefilledClassroomId, autoOpenForm, scope }: StudentDashboardProps = {}) => {
+const HostelDashboard = ({ prefilledAssetId, autoOpenForm }: HostelDashboardProps = {}) => {
     const { user: currentUser, logout } = useAuth();
+    const [searchParams] = useSearchParams();
+    const urlAssetId = searchParams.get('assetId'); // Get assetId from URL if exists
+
+    // Prioritize prop, then URL param
+    const effectiveAssetId = prefilledAssetId || urlAssetId || '';
+
+    // State management
     const [complaints, setComplaints] = useState<Complaint[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [showComplaintForm, setShowComplaintForm] = useState(autoOpenForm || false);
+    const [showComplaintForm, setShowComplaintForm] = useState(autoOpenForm || !!urlAssetId);
     const [showQRScanner, setShowQRScanner] = useState(false);
     const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState<ComplaintStatus | 'all'>('all');
+    const [scannedAssetId, setScannedAssetId] = useState<string>('');
 
     useEffect(() => {
         const fetchComplaints = async () => {
             try {
-                // Modified API call to include scope (default to college for StudentDashboard)
-                const response = await api.get('/complaints/my-complaints', { params: { scope: 'college' } });
+                // Fetch only hostel complaints
+                const response = await api.get('/complaints/my-complaints', { params: { scope: 'hostel' } });
                 setComplaints(response.data);
             } catch (error) {
                 console.error('Failed to fetch complaints', error);
@@ -43,10 +50,7 @@ const StudentDashboard = ({ prefilledAssetId, prefilledClassroomId, autoOpenForm
 
     if (!currentUser) return null;
 
-    // Filter student's complaints
-    const studentComplaints = complaints;
-
-    const filteredComplaints = studentComplaints.filter(complaint => {
+    const filteredComplaints = complaints.filter(complaint => {
         const matchesSearch = complaint.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
             complaint.description.toLowerCase().includes(searchQuery.toLowerCase());
         const matchesStatus = statusFilter === 'all' || complaint.status === statusFilter;
@@ -55,20 +59,20 @@ const StudentDashboard = ({ prefilledAssetId, prefilledClassroomId, autoOpenForm
 
     const stats = [
         {
-            label: 'Total Complaints',
-            value: studentComplaints.length,
+            label: 'Hostel Complaints',
+            value: complaints.length,
             icon: AlertCircle,
-            color: 'from-blue-500 to-cyan-500'
+            color: 'from-orange-500 to-amber-500' // Distinct color for Hostel
         },
         {
             label: 'In Progress',
-            value: studentComplaints.filter(c => c.status === 'in_progress' || c.status === 'assigned').length,
+            value: complaints.filter(c => c.status === 'in_progress' || c.status === 'assigned').length,
             icon: Clock,
-            color: 'from-orange-500 to-red-500'
+            color: 'from-blue-500 to-cyan-500'
         },
         {
             label: 'Resolved',
-            value: studentComplaints.filter(c => c.status === 'resolved' || c.status === 'closed').length,
+            value: complaints.filter(c => c.status === 'resolved' || c.status === 'closed').length,
             icon: CheckCircle,
             color: 'from-green-500 to-emerald-500'
         }
@@ -76,50 +80,53 @@ const StudentDashboard = ({ prefilledAssetId, prefilledClassroomId, autoOpenForm
 
     if (isLoading) {
         return (
-            <div className="min-h-screen bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 flex items-center justify-center">
-                <div className="text-white text-2xl font-bold animate-pulse">Loading Complaints...</div>
+            <div className="min-h-screen bg-gradient-to-br from-orange-600 via-amber-600 to-yellow-600 flex items-center justify-center">
+                <div className="text-white text-2xl font-bold animate-pulse">Loading Hostel Dashboard...</div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-gray-50 p-4 md:p-6 text-gray-900">
+        <div className="min-h-screen bg-orange-50 p-4 md:p-6 text-gray-900">
             <div className="max-w-7xl mx-auto">
                 {/* Header */}
                 <div className="mb-8">
                     <div className="flex flex-col md:flex-row items-center justify-between mb-6 gap-4">
                         <div className="text-center md:text-left">
-                            <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2">Student Dashboard</h1>
-                            <p className="text-gray-600">Welcome back, {currentUser.name}!</p>
+                            <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2 flex items-center gap-2 justify-center md:justify-start">
+                                <Home className="w-8 h-8 text-orange-600" />
+                                Hostel Dashboard
+                            </h1>
+                            <p className="text-gray-600">Welcome back to your hostel portal, {currentUser.name}!</p>
                         </div>
                         <div className="flex flex-wrap gap-3 items-center justify-center w-full md:w-auto">
                             <NotificationBell />
                             <button
                                 onClick={() => setShowQRScanner(true)}
-                                className="btn-secondary flex items-center gap-2 px-4 py-2 text-sm md:text-base"
+                                className="bg-white hover:bg-orange-50 text-orange-700 border border-orange-200 rounded-lg px-4 py-2 flex items-center gap-2 transition-all shadow-sm"
                             >
                                 <QrCode className="w-5 h-5" />
                                 Scan Asset
                             </button>
                             <button
                                 onClick={() => setShowComplaintForm(true)}
-                                className="btn-primary flex items-center gap-2 px-4 py-2 text-sm md:text-base"
+                                className="bg-orange-600 hover:bg-orange-700 text-white rounded-lg px-4 py-2 flex items-center gap-2 transition-all shadow-md"
                             >
                                 <Plus className="w-5 h-5" />
                                 Report Issue
                             </button>
                             <button
                                 onClick={logout}
-                                className="px-4 py-2 bg-white hover:bg-gray-50 text-gray-700 rounded-lg transition-colors text-sm md:text-base font-medium border border-gray-200 shadow-sm"
+                                className="px-4 py-2 bg-white hover:bg-gray-50 text-gray-700 rounded-lg transition-colors font-medium border border-gray-200 shadow-sm"
                             >
-                                Sign Out
+                                <LogOut className="w-4 h-4" />
                             </button>
                             {currentUser.accessScope === 'both' && (
                                 <button
-                                    onClick={() => window.location.href = '/hostel-student'}
-                                    className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg transition-colors text-sm md:text-base font-medium shadow-sm"
+                                    onClick={() => window.location.href = '/student'}
+                                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm font-medium shadow-sm"
                                 >
-                                    Go to Hostel
+                                    Go to College
                                 </button>
                             )}
                         </div>
@@ -130,7 +137,7 @@ const StudentDashboard = ({ prefilledAssetId, prefilledClassroomId, autoOpenForm
                         {stats.map((stat, index) => {
                             const Icon = stat.icon;
                             return (
-                                <div key={index} className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+                                <div key={index} className="bg-white rounded-xl p-6 shadow-sm border border-orange-100 hover:shadow-md transition-shadow">
                                     <div className="flex items-center justify-between">
                                         <div>
                                             <p className="text-gray-500 text-sm mb-1">{stat.label}</p>
@@ -147,7 +154,7 @@ const StudentDashboard = ({ prefilledAssetId, prefilledClassroomId, autoOpenForm
                 </div>
 
                 {/* Filters */}
-                <div className="bg-white rounded-xl p-6 mb-6 shadow-sm border border-gray-100">
+                <div className="bg-white rounded-xl p-6 mb-6 shadow-sm border border-orange-100">
                     <div className="flex flex-col md:flex-row gap-4">
                         <div className="flex-1 relative">
                             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
@@ -156,7 +163,7 @@ const StudentDashboard = ({ prefilledAssetId, prefilledClassroomId, autoOpenForm
                                 placeholder="Search complaints..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow"
+                                className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-shadow"
                             />
                         </div>
                         <div className="flex items-center gap-2">
@@ -164,7 +171,7 @@ const StudentDashboard = ({ prefilledAssetId, prefilledClassroomId, autoOpenForm
                             <select
                                 value={statusFilter}
                                 onChange={(e) => setStatusFilter(e.target.value as ComplaintStatus | 'all')}
-                                className="px-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                                className="px-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white"
                             >
                                 <option value="all">All Status</option>
                                 <option value="reported">Reported</option>
@@ -180,13 +187,13 @@ const StudentDashboard = ({ prefilledAssetId, prefilledClassroomId, autoOpenForm
                 {/* Complaints List */}
                 <div className="space-y-4">
                     {filteredComplaints.length === 0 ? (
-                        <div className="bg-white rounded-xl p-12 text-center shadow-sm border border-gray-100">
-                            <AlertCircle className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                            <h3 className="text-xl font-semibold text-gray-900 mb-2">No complaints found</h3>
-                            <p className="text-gray-500 mb-6">Start by scanning a QR code or creating a new complaint</p>
-                            <button onClick={() => setShowQRScanner(true)} className="btn-primary">
-                                <QrCode className="w-5 h-5 inline mr-2" />
-                                Scan QR Code
+                        <div className="bg-white rounded-xl p-12 text-center shadow-sm border border-orange-100">
+                            <Home className="w-16 h-16 text-orange-200 mx-auto mb-4" />
+                            <h3 className="text-xl font-semibold text-gray-900 mb-2">No hostel complaints found</h3>
+                            <p className="text-gray-500 mb-6">Everything looks good! Or report an issue if you seek one.</p>
+                            <button onClick={() => setShowComplaintForm(true)} className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg inline-flex items-center gap-2 shadow-sm">
+                                <Plus className="w-5 h-5" />
+                                Report Issue
                             </button>
                         </div>
                     ) : (
@@ -194,7 +201,7 @@ const StudentDashboard = ({ prefilledAssetId, prefilledClassroomId, autoOpenForm
                             <div
                                 key={complaint.id}
                                 onClick={() => setSelectedComplaint(complaint)}
-                                className="bg-white rounded-xl p-4 md:p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow cursor-pointer"
+                                className="bg-white rounded-xl p-4 md:p-6 shadow-sm border border-orange-100 hover:shadow-md transition-shadow cursor-pointer"
                             >
                                 <div className="flex flex-col md:flex-row items-start justify-between mb-4 gap-4">
                                     <div className="flex-1 w-full">
@@ -208,16 +215,23 @@ const StudentDashboard = ({ prefilledAssetId, prefilledClassroomId, autoOpenForm
                                                     {complaint.severity.toUpperCase()}
                                                 </span>
                                             </div>
+                                            {/* Display Category if exists */}
+                                            {(complaint as any).category && (
+                                                <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-bold ml-1">
+                                                    {(complaint as any).category}
+                                                </span>
+                                            )}
                                         </div>
                                         <p className="text-gray-600 mb-2">{complaint.description}</p>
                                         <div className="flex items-center gap-4 text-sm text-gray-500">
-                                            <span>ID: {complaint.id}</span>
+                                            <span>ID: {complaint.id.slice(0, 8)}</span>
                                             <span>•</span>
                                             <span>{complaint.asset?.name}</span>
                                             <span>•</span>
                                             <span>{getTimeDifference(complaint.createdAt)}</span>
                                         </div>
                                     </div>
+                                    {/* Image Logic */}
                                     {(() => {
                                         const raw = complaint.images as any;
                                         let imgUrl = null;
@@ -244,24 +258,6 @@ const StudentDashboard = ({ prefilledAssetId, prefilledClassroomId, autoOpenForm
                                         return null;
                                     })()}
                                 </div>
-
-                                {complaint.technician && (
-                                    <div className="flex items-center gap-3 pt-4 border-t border-gray-100">
-                                        <img
-                                            src={complaint.technician.avatar}
-                                            alt={complaint.technician.name}
-                                            className="w-8 h-8 rounded-full"
-                                        />
-                                        <div>
-                                            <p className="text-sm font-medium text-gray-900">
-                                                Assigned to: {complaint.technician.name}
-                                            </p>
-                                            <p className="text-xs text-gray-500">
-                                                {formatDate(complaint.assignedAt!)}
-                                            </p>
-                                        </div>
-                                    </div>
-                                )}
                             </div>
                         ))
                     )}
@@ -271,15 +267,25 @@ const StudentDashboard = ({ prefilledAssetId, prefilledClassroomId, autoOpenForm
             {/* Modals */}
             {showComplaintForm && (
                 <ComplaintForm
-                    onClose={() => setShowComplaintForm(false)}
-                    prefilledAssetId={prefilledAssetId}
-                    prefilledClassroomId={prefilledClassroomId}
-                    scope={scope}
+                    onClose={() => {
+                        setShowComplaintForm(false);
+                        setScannedAssetId('');
+                    }}
+                    prefilledAssetId={scannedAssetId || effectiveAssetId}
+                    scope="hostel"
                 />
             )}
 
             {showQRScanner && (
-                <QRScanner onClose={() => setShowQRScanner(false)} />
+                <QRScanner
+                    onClose={() => setShowQRScanner(false)}
+                    onScan={(id) => {
+                        setScannedAssetId(id);
+                        setShowComplaintForm(true);
+                        // Optionally update URL to reflect state without reloading?
+                        // window.history.replaceState({}, '', `/hostel-student?assetId=${id}`);
+                    }}
+                />
             )}
 
             {selectedComplaint && (
@@ -291,4 +297,4 @@ const StudentDashboard = ({ prefilledAssetId, prefilledClassroomId, autoOpenForm
         </div>
     );
 };
-export default StudentDashboard;
+export default HostelDashboard;

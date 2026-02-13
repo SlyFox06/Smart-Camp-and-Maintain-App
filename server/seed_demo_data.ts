@@ -29,7 +29,7 @@ const seedDatabase = async () => {
         await prisma.technician.create({
             data: {
                 userId: tech1.id,
-                skillType: 'Electrical',
+                skillType: 'Electrician',
                 assignedArea: 'Building A',
                 isAvailable: true
             }
@@ -51,7 +51,7 @@ const seedDatabase = async () => {
         await prisma.technician.create({
             data: {
                 userId: tech2.id,
-                skillType: 'Plumbing',
+                skillType: 'Plumber',
                 assignedArea: 'Building B',
                 isAvailable: true
             }

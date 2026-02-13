@@ -40,7 +40,18 @@ const Login = () => {
             if (from) {
                 navigate(from, { replace: true });
             } else {
-                navigate(`/${user.role}`, { replace: true });
+                if (user.role === 'student') {
+                    if (user.accessScope === 'hostel') {
+                        navigate('/hostel-student', { replace: true });
+                    } else if (user.accessScope === 'both') {
+                        // Start with college by default, but StudentDashboard should have a switcher
+                        navigate('/student', { replace: true });
+                    } else {
+                        navigate('/student', { replace: true });
+                    }
+                } else {
+                    navigate(`/${user.role}`, { replace: true });
+                }
             }
 
         } catch (err: any) {

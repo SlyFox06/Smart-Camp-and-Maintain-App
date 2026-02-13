@@ -44,7 +44,11 @@ export const getStatusColor = (status: ComplaintStatus): string => {
         in_progress: 'bg-orange-500',
         resolved: 'bg-green-500',
         closed: 'bg-gray-500',
-        rejected: 'bg-red-500'
+        rejected: 'bg-red-500',
+        work_submitted: 'bg-purple-500',
+        work_approved: 'bg-teal-500',
+        rework_required: 'bg-red-500',
+        feedback_pending: 'bg-teal-500'
     };
     return colors[status] || 'bg-gray-500';
 };
@@ -68,7 +72,11 @@ export const getStatusBadgeStyle = (status: ComplaintStatus): string => {
         in_progress: 'bg-orange-100 text-orange-800 border-orange-200',
         resolved: 'bg-green-100 text-green-800 border-green-200',
         closed: 'bg-gray-100 text-gray-800 border-gray-200',
-        rejected: 'bg-red-100 text-red-800 border-red-200'
+        rejected: 'bg-red-100 text-red-800 border-red-200',
+        work_submitted: 'bg-purple-100 text-purple-800 border-purple-200',
+        work_approved: 'bg-teal-100 text-teal-800 border-teal-200',
+        rework_required: 'bg-red-100 text-red-800 border-red-200',
+        feedback_pending: 'bg-teal-100 text-teal-800 border-teal-200'
     };
     return styles[status] || 'bg-gray-100 text-gray-800';
 };

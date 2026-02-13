@@ -5,7 +5,7 @@ import type { Complaint } from '../types';
 import api from '../services/api';
 import { formatDate, getTimeDifference, formatResolutionTime, calculateResolutionTime } from '../utils/helpers';
 import { useAuth } from '../hooks/useAuth';
-import AssignTechnicianModal from './AssignTechnicianModal';
+
 
 interface ComplaintDetailsProps {
     complaint: Complaint;
@@ -16,7 +16,7 @@ const ComplaintDetails = ({ complaint, onClose }: ComplaintDetailsProps) => {
     const [otpInput, setOtpInput] = useState('');
     const [otpError, setOtpError] = useState('');
     const [isVerifying, setIsVerifying] = useState(false);
-    const [showAssignModal, setShowAssignModal] = useState(false);
+
 
     // Priority Editing
     const [isEditingPriority, setIsEditingPriority] = useState(false);
@@ -170,16 +170,16 @@ const ComplaintDetails = ({ complaint, onClose }: ComplaintDetailsProps) => {
         <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-50 p-4 overflow-y-auto">
             <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full my-8 max-h-[90vh] overflow-y-auto">
                 {/* Header */}
-                <div className="sticky top-0 bg-gradient-to-r from-purple-600 via-pink-600 to-red-600 p-6 border-b-4 border-white/20 flex items-start justify-between z-10 rounded-t-2xl">
+                <div className="sticky top-0 bg-white p-6 border-b border-gray-200 flex items-start justify-between z-10 rounded-t-2xl">
                     <div className="flex-1">
-                        <h2 className="text-3xl font-bold text-white mb-2">{complaint.title}</h2>
-                        <p className="text-sm text-white/80">ID: {complaint.id}</p>
+                        <h2 className="text-3xl font-bold text-gray-900 mb-2">{complaint.title}</h2>
+                        <p className="text-sm text-gray-500">ID: {complaint.id}</p>
                     </div>
                     <button
                         onClick={onClose}
-                        className="p-2 hover:bg-white/20 rounded-lg transition-colors flex-shrink-0"
+                        className="p-2 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0"
                     >
-                        <X className="w-6 h-6 text-white" />
+                        <X className="w-6 h-6 text-gray-500" />
                     </button>
                 </div>
 
@@ -257,7 +257,7 @@ const ComplaintDetails = ({ complaint, onClose }: ComplaintDetailsProps) => {
 
                     {/* Admin Approval Section - ONLY for REPORTED status */}
                     {isAdmin && complaint.status === 'reported' && (
-                        <div className="bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-xl p-6 mb-6">
+                        <div className="bg-orange-50 border border-orange-200 rounded-xl p-6 mb-6">
                             <h3 className="font-bold text-gray-900 mb-2 flex items-center gap-2">
                                 <AlertCircle className="w-5 h-5 text-orange-600" />
                                 Admin Action Required
@@ -279,24 +279,13 @@ const ComplaintDetails = ({ complaint, onClose }: ComplaintDetailsProps) => {
                             <div className="flex gap-4">
                                 {!showRejectInput && (
                                     <button
-                                        onClick={() => setShowAssignModal(true)}
+                                        onClick={() => handleApproval('accept')}
                                         disabled={isProcessing}
                                         className="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors"
                                     >
                                         <CheckCircle className="w-5 h-5" />
-                                        Approve & Assign
+                                        Approve & Auto-Assign
                                     </button>
-                                )}
-
-                                {showAssignModal && (
-                                    <AssignTechnicianModal
-                                        complaintId={complaint.id}
-                                        onClose={() => setShowAssignModal(false)}
-                                        onAssignSuccess={() => {
-                                            alert('Technician assigned successfully');
-                                            onClose();
-                                        }}
-                                    />
                                 )}
 
                                 <button
@@ -321,7 +310,7 @@ const ComplaintDetails = ({ complaint, onClose }: ComplaintDetailsProps) => {
                     )}
 
                     {/* Description */}
-                    <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-6 border-2 border-gray-200">
+                    <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
                         <h3 className="font-bold text-gray-900 mb-3 text-lg">Description</h3>
                         <p className="text-gray-700 leading-relaxed text-base">{complaint.description}</p>
                     </div>
@@ -348,7 +337,7 @@ const ComplaintDetails = ({ complaint, onClose }: ComplaintDetailsProps) => {
 
                     {/* Asset Information */}
                     {complaint.asset && (
-                        <div className="bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 border-2 border-blue-300 rounded-xl p-6">
+                        <div className="bg-blue-50 border border-blue-200 rounded-xl p-6">
                             <h3 className="font-bold text-gray-900 mb-4 text-lg">Asset Information</h3>
                             <div className="grid md:grid-cols-2 gap-6">
                                 <div>
@@ -582,7 +571,7 @@ const ComplaintDetails = ({ complaint, onClose }: ComplaintDetailsProps) => {
 
                     {/* OTP Verification (for students when complaint is resolved) */}
                     {canVerifyOTP && (
-                        <div className="bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-300 rounded-xl p-6">
+                        <div className="bg-green-50 border border-green-200 rounded-xl p-6">
                             <div className="flex items-center gap-2 mb-4">
                                 <CheckCircle className="w-6 h-6 text-green-600" />
                                 <h3 className="font-semibold text-gray-900">Verify Complaint Resolution</h3>

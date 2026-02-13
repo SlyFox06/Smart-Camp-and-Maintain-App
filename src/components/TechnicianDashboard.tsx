@@ -114,30 +114,30 @@ const TechnicianDashboard = () => {
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-orange-600 via-red-600 to-pink-600 p-6">
+        <div className="min-h-screen bg-gray-50 p-6">
             <div className="max-w-7xl mx-auto">
                 <div className="mb-8">
                     <div className="flex items-center justify-between mb-6">
                         <div>
-                            <h1 className="text-4xl font-bold text-white mb-2">Technician Dashboard</h1>
-                            <p className="text-white/80">Welcome back, {currentTechnician.name}!</p>
+                            <h1 className="text-4xl font-bold text-gray-900 mb-2">Technician Dashboard</h1>
+                            <p className="text-gray-600">Welcome back, {currentTechnician.name}!</p>
                         </div>
                         <div className="flex items-center gap-4">
                             <button
                                 onClick={handleToggleAvailability}
                                 disabled={isToggling}
-                                className={`px-4 py-2 rounded-full font-semibold flex items-center gap-2 transition-all shadow-lg text-sm border-2 ${isAvailable
-                                    ? 'bg-green-500 border-white/20 text-white hover:bg-green-600'
-                                    : 'bg-gray-800 border-white/20 text-gray-200 hover:bg-gray-900'
+                                className={`px-4 py-2 rounded-full font-semibold flex items-center gap-2 transition-all shadow-sm text-sm border-2 ${isAvailable
+                                    ? 'bg-green-100 border-green-200 text-green-700 hover:bg-green-200'
+                                    : 'bg-gray-200 border-gray-300 text-gray-600 hover:bg-gray-300'
                                     }`}
                             >
-                                <div className={`w-2 h-2 rounded-full ${isAvailable ? 'bg-white animate-pulse' : 'bg-red-500'}`} />
+                                <div className={`w-2 h-2 rounded-full ${isAvailable ? 'bg-green-600 animate-pulse' : 'bg-gray-500'}`} />
                                 {isToggling ? 'Updating...' : isAvailable ? 'Available' : 'Unavailable'}
                             </button>
                             <NotificationBell />
                             <button
                                 onClick={logout}
-                                className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg transition-colors text-sm font-medium border border-white/20"
+                                className="px-4 py-2 bg-white hover:bg-gray-50 text-gray-700 rounded-lg transition-colors text-sm font-medium border border-gray-200 shadow-sm"
                             >
                                 Sign Out
                             </button>
@@ -148,13 +148,13 @@ const TechnicianDashboard = () => {
                         {stats.map((stat, index) => {
                             const Icon = stat.icon;
                             return (
-                                <div key={index} className="glass-card-light p-6 card-hover">
+                                <div key={index} className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
                                     <div className="flex items-center justify-between">
                                         <div>
-                                            <p className="text-gray-600 text-sm mb-1">{stat.label}</p>
+                                            <p className="text-gray-500 text-sm mb-1">{stat.label}</p>
                                             <p className="text-3xl font-bold text-gray-900">{stat.value}</p>
                                         </div>
-                                        <div className={`w-14 h-14 bg-gradient-to-r ${stat.color} rounded-xl flex items-center justify-center`}>
+                                        <div className={`w-14 h-14 bg-gradient-to-r ${stat.color} rounded-xl flex items-center justify-center shadow-sm`}>
                                             <Icon className="w-7 h-7 text-white" />
                                         </div>
                                     </div>
@@ -164,7 +164,7 @@ const TechnicianDashboard = () => {
                     </div>
                 </div>
 
-                <div className="glass-card-light p-6 mb-6">
+                <div className="bg-white rounded-xl p-6 mb-6 shadow-sm border border-gray-100">
                     <div className="flex flex-col md:flex-row gap-4">
                         <div className="flex-1 relative">
                             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
@@ -173,15 +173,15 @@ const TechnicianDashboard = () => {
                                 placeholder="Search tasks..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                className="input-field-light pl-10"
+                                className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
                             />
                         </div>
                         <div className="flex items-center gap-2">
-                            <Filter className="text-gray-600 w-5 h-5" />
+                            <Filter className="text-gray-500 w-5 h-5" />
                             <select
                                 value={statusFilter}
                                 onChange={(e) => setStatusFilter(e.target.value as ComplaintStatus | 'all')}
-                                className="input-field-light"
+                                className="px-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                             >
                                 <option value="all">All Status</option>
                                 <option value="assigned">Assigned</option>
@@ -198,16 +198,16 @@ const TechnicianDashboard = () => {
 
                 <div className="space-y-4">
                     {filteredComplaints.length === 0 ? (
-                        <div className="glass-card-light p-12 text-center">
-                            <Wrench className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                        <div className="bg-white rounded-xl p-12 text-center shadow-sm border border-gray-100">
+                            <Wrench className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                             <h3 className="text-xl font-semibold text-gray-900 mb-2">No tasks found</h3>
-                            <p className="text-gray-600">You're all caught up! No pending tasks at the moment.</p>
+                            <p className="text-gray-500">You're all caught up! No pending tasks at the moment.</p>
                         </div>
                     ) : (
                         filteredComplaints.map((complaint) => (
                             <div
                                 key={complaint.id}
-                                className="glass-card-light p-6"
+                                className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow"
                             >
                                 <div className="flex items-start justify-between mb-4">
                                     <div className="flex-1">
@@ -253,7 +253,7 @@ const TechnicianDashboard = () => {
                                 </div>
 
                                 {complaint.student && (
-                                    <div className="flex items-center gap-3 py-3 border-t border-b border-gray-200 my-4">
+                                    <div className="flex items-center gap-3 py-3 border-t border-b border-gray-100 my-4">
                                         <img
                                             src={complaint.student.avatar}
                                             alt={complaint.student.name}
@@ -271,7 +271,7 @@ const TechnicianDashboard = () => {
                                 <div className="flex gap-3">
                                     <button
                                         onClick={() => setSelectedComplaint(complaint)}
-                                        className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300 transition-colors"
+                                        className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 font-semibold rounded-lg hover:bg-gray-200 transition-colors"
                                     >
                                         View Details
                                     </button>
@@ -289,7 +289,7 @@ const TechnicianDashboard = () => {
                                         </div>
                                     )}
                                     {complaint.status === 'resolved' && (
-                                        <div className="flex-1 px-4 py-2 bg-green-100 text-green-800 font-semibold rounded-lg text-center border border-green-300">
+                                        <div className="flex-1 px-4 py-2 bg-green-100 text-green-800 font-semibold rounded-lg text-center border border-green-200">
                                             Completed
                                         </div>
                                     )}

@@ -5,17 +5,27 @@ export const createNotification = async (
     title: string,
     message: string,
     type: string,
-    relatedComplaintId?: string
+    relatedEntityId?: string,
+    entityType: 'complaint' | 'emergency' = 'complaint'
 ) => {
     try {
-        const notification = await prisma.notification.create({
-            data: {
-                userId,
-                title,
-                message,
-                type,
-                relatedComplaintId
+        const data: any = {
+            userId,
+            title,
+            message,
+            type
+        };
+
+        if (relatedEntityId) {
+            if (entityType === 'complaint') {
+                data.relatedComplaintId = relatedEntityId;
+            } else if (entityType === 'emergency') {
+                data.relatedEmergencyId = relatedEntityId;
             }
+        }
+
+        const notification = await prisma.notification.create({
+            data
         });
         return notification;
     } catch (error) {

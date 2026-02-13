@@ -1,5 +1,5 @@
 // User Types
-export type UserRole = 'student' | 'technician' | 'admin';
+export type UserRole = 'student' | 'technician' | 'admin' | 'warden' | 'cleaner';
 
 export interface User {
     id: string;
@@ -16,6 +16,11 @@ export interface User {
         assignedArea?: string;
         isAvailable?: boolean;
     };
+    cleaner?: {
+        assignedArea: string;
+        isAvailable: boolean;
+    };
+    accessScope?: 'college' | 'hostel' | 'both';
 }
 
 // Asset Types

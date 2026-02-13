@@ -23,11 +23,13 @@ model User {
   resetPasswordExpires DateTime?      @map("reset_password_expires") @db.Timestamptz(6)
   createdAt            DateTime?      @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt            DateTime?      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  accessScope          String?        @default("college") @map("access_scope") // "college", "hostel", "both"
   auditLogs            AuditLog[]
   studentsComplaints   Complaint[]    @relation("StudentComplaints")
   technicianComplaints Complaint[]    @relation("TechnicianComplaints")
   notifications        Notification[]
   technician           Technician?
+  cleaner              Cleaner?       @relation("CleanerUser")
 
   @@index([email], map: "idx_users_email")
   @@index([role], map: "idx_users_role")
@@ -58,6 +60,8 @@ model Complaint {
   description     String
   status          String?         @default("reported") @db.VarChar(50)
   severity        String?         @default("medium") @db.VarChar(50)
+  scope           String?         @default("college") @db.VarChar(20) // "college" or "hostel"
+  category        String?         @db.VarChar(50) // "Electrical", "Plumbing", "Furniture", "Wifi", "Other"
   images          String?
   video           String?
   workProof       String?         @map("work_proof") // Images uploaded by technician
@@ -70,23 +74,71 @@ model Complaint {
   rejectionReason String?         @map("rejection_reason")
   studentId       String          @map("student_id") @db.Uuid
   technicianId    String?         @map("technician_id") @db.Uuid
-  assetId         String          @map("asset_id") @db.Uuid
+  assetId         String?         @map("asset_id") @db.Uuid
+  roomId          String?         @map("room_id") @db.Uuid
+  classroomId     String?         @map("classroom_id") @db.Uuid
   assignedAt      DateTime?       @map("assigned_at") @db.Timestamptz(6)
   resolvedAt      DateTime?       @map("resolved_at") @db.Timestamptz(6)
   createdAt       DateTime?       @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime?       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  asset           Asset           @relation(fields: [assetId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  asset           Asset?          @relation(fields: [assetId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  room            Room?           @relation(fields: [roomId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  classroom       Classroom?      @relation(fields: [classroomId], references: [id], onDelete: Cascade, onUpdate: NoAction)
   student         User            @relation("StudentComplaints", fields: [studentId], references: [id], onDelete: Cascade, onUpdate: NoAction)
   technician      User?           @relation("TechnicianComplaints", fields: [technicianId], references: [id], onUpdate: NoAction)
   notifications   Notification[]
   statusHistory   StatusHistory[]
 
   @@index([assetId], map: "idx_complaints_asset")
+  @@index([roomId], map: "idx_complaints_room")
+  @@index([classroomId], map: "idx_complaints_classroom")
   @@index([status], map: "idx_complaints_status")
   @@index([studentId], map: "idx_complaints_student")
   @@index([technicianId], map: "idx_complaints_technician")
   @@map("complaints")
 }
+
+model Room {
+  id          String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  roomNumber  String      @map("room_number") @db.VarChar(50)
+  block       String      @db.VarChar(100) // e.g., "Block A", "Boys Hostel"
+  floor       String      @db.VarChar(50)
+  hostelName  String      @map("hostel_name") @db.VarChar(100) // e.g., "Boys Hostel 1"
+  capacity    Int?        // Number of beds
+  status      String?     @default("operational") @db.VarChar(50) // operational, under_maintenance, closed
+  qrUrl       String?     @map("qr_url")
+  createdAt   DateTime?   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime?   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  complaints  Complaint[]
+
+  @@unique([block, floor, roomNumber], map: "unique_room")
+  @@index([status], map: "idx_rooms_status")
+  @@index([hostelName], map: "idx_rooms_hostel")
+  @@map("rooms")
+}
+
+model Classroom {
+  id          String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name        String      @db.VarChar(100) // e.g., "Lab 204", "Lecture Hall A"
+  building    String      @db.VarChar(100)
+  floor       String      @db.VarChar(50)
+  roomNumber  String      @map("room_number") @db.VarChar(50)
+  department  String      @db.VarChar(100)
+  capacity    Int?        // Number of seats
+  type        String?     @db.VarChar(50) // lecture_hall, lab, tutorial_room, library
+  status      String?     @default("operational") @db.VarChar(50) // operational, under_maintenance, closed
+  qrUrl       String?     @map("qr_url")
+  createdAt   DateTime?      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime?      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  complaints  Complaint[]
+  cleaningTasks CleaningTask[]
+
+  @@unique([building, floor, roomNumber], map: "unique_classroom")
+  @@index([status], map: "idx_classrooms_status")
+  @@index([department], map: "idx_classrooms_department")
+  @@map("classrooms")
+}
+
 
 model Technician {
   id                String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
@@ -122,8 +174,10 @@ model Notification {
   type               String     @db.VarChar(50)
   isRead             Boolean?   @default(false) @map("is_read")
   relatedComplaintId String?    @map("related_complaint_id") @db.Uuid
+  relatedEmergencyId String?    @map("related_emergency_id") @db.Uuid
   createdAt          DateTime?  @default(now()) @map("created_at") @db.Timestamptz(6)
   relatedComplaint   Complaint? @relation(fields: [relatedComplaintId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  relatedEmergency   Emergency? @relation(fields: [relatedEmergencyId], references: [id], onDelete: Cascade, onUpdate: NoAction)
   user               User       @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([userId, isRead], map: "idx_notifications_unread")
@@ -141,4 +195,57 @@ model AuditLog {
 
   @@index([userId], map: "idx_audit_logs_user")
   @@map("audit_logs")
+}
+
+model Cleaner {
+  id              String         @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId          String         @unique @map("user_id") @db.Uuid
+  assignedArea    String         @map("assigned_area") @db.VarChar(100) // Building or area name
+  isAvailable     Boolean        @default(true) @map("is_available")
+  lastAvailabilityUpdate DateTime? @map("last_availability_update") @db.Timestamptz(6)
+  createdAt       DateTime?      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime?      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user            User           @relation("CleanerUser", fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  cleaningTasks   CleaningTask[]
+
+  @@index([isAvailable], map: "idx_cleaners_availability")
+  @@index([assignedArea], map: "idx_cleaners_area")
+  @@map("cleaners")
+}
+
+model CleaningTask {
+  id              String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  classroomId     String    @map("classroom_id") @db.Uuid
+  cleanerId       String?   @map("cleaner_id") @db.Uuid
+  scheduledDate   DateTime  @map("scheduled_date") @db.Date
+  status          String    @default("pending_assignment") @db.VarChar(50) // pending_assignment, waiting_for_availability, assigned, in_progress, completed, skipped
+  assignedAt      DateTime? @map("assigned_at") @db.Timestamptz(6)
+  completedAt     DateTime? @map("completed_at") @db.Timestamptz(6)
+  notes           String?   @db.Text
+  createdAt       DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime? @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  classroom       Classroom @relation(fields: [classroomId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  cleaner         Cleaner?  @relation(fields: [cleanerId], references: [id], onUpdate: NoAction)
+
+  @@unique([classroomId, scheduledDate], map: "unique_classroom_date")
+  @@index([status], map: "idx_cleaning_tasks_status")
+  @@index([scheduledDate], map: "idx_cleaning_tasks_date")
+  @@index([cleanerId], map: "idx_cleaning_tasks_cleaner")
+  @@map("cleaning_tasks")
+}
+
+
+model Emergency {
+  id              String         @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  type            String         @db.VarChar(50)
+  location        String
+  description     String?
+  status          String         @default("triggered") @db.VarChar(50)
+  reportedAt      DateTime       @default(now()) @map("reported_at") @db.Timestamptz(6)
+  respondedAt     DateTime?      @map("responded_at") @db.Timestamptz(6)
+  resolvedAt      DateTime?      @map("resolved_at") @db.Timestamptz(6)
+  notifications   Notification[]
+  
+  @@index([status], map: "idx_emergencies_status")
+  @@map("emergencies")
 }
