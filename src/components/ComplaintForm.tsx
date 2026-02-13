@@ -18,7 +18,10 @@ const ComplaintForm = ({ onClose, prefilledAssetId, prefilledRoomId, prefilledCl
     const [roomId, setRoomId] = useState(prefilledRoomId || '');
     const [classroomId, setClassroomId] = useState(prefilledClassroomId || '');
     const [classroomInfo, setClassroomInfo] = useState<any>(null);
+    const [roomInfo, setRoomInfo] = useState<any>(null);
     const [title, setTitle] = useState('');
+    // ... (rest of states are same but I'll include them for context if needed or just replace the block)
+
     const [description, setDescription] = useState('');
     const [category, setCategory] = useState<string>('');
     const [images, setImages] = useState<File[]>([]);
@@ -44,6 +47,20 @@ const ComplaintForm = ({ onClose, prefilledAssetId, prefilledRoomId, prefilledCl
         };
         fetchClassroomInfo();
     }, [classroomId]);
+
+    // Fetch room info if roomId is provided
+    useEffect(() => {
+        const fetchRoomInfo = async () => {
+            if (!roomId) return;
+            try {
+                const response = await api.get(`/rooms/${roomId}`);
+                setRoomInfo(response.data);
+            } catch (err) {
+                console.error('Failed to fetch room info', err);
+            }
+        };
+        fetchRoomInfo();
+    }, [roomId]);
 
     useEffect(() => {
         const fetchAssets = async () => {
@@ -82,10 +99,10 @@ const ComplaintForm = ({ onClose, prefilledAssetId, prefilledRoomId, prefilledCl
     const selectedAsset = assets.find(a => a.id === assetId);
 
     // Auto-detect scope based on asset details if not explicitly provided
-    const effectiveScope = scope || (selectedAsset && (
+    const effectiveScope = scope || (roomId ? 'hostel' : (classroomId ? 'classroom' : (selectedAsset && (
         selectedAsset.building.toLowerCase().includes('hostel') ||
         selectedAsset.department.toLowerCase().includes('hostel')
-    ) ? 'hostel' : 'college');
+    ) ? 'hostel' : 'college')));
 
     const predictedSeverity = title && description ? classifySeverity(title, description) : null;
 
@@ -229,8 +246,8 @@ const ComplaintForm = ({ onClose, prefilledAssetId, prefilledRoomId, prefilledCl
                         </div>
                     )}
 
-                    {/* Asset Selection - Only show if not a classroom complaint */}
-                    {!classroomId && (
+                    {/* Asset Selection - Only show if not a classroom or room complaint */}
+                    {!classroomId && !roomId && (
                         <div>
                             <label className="block text-sm font-semibold text-gray-700 mb-2">
                                 Select Asset <span className="text-red-500">*</span>
@@ -257,6 +274,23 @@ const ComplaintForm = ({ onClose, prefilledAssetId, prefilledRoomId, prefilledCl
                                         <strong>Type:</strong> {selectedAsset.type.replace('_', ' ').toUpperCase()}
                                     </p>
                                 </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Room Info Display */}
+                    {roomInfo && (
+                        <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg">
+                            <p className="text-sm text-orange-900 font-semibold mb-1">
+                                🏠 Room {roomInfo.roomNumber}
+                            </p>
+                            <p className="text-sm text-orange-800">
+                                {roomInfo.hostelName}, Floor {roomInfo.floor} {roomInfo.block}
+                            </p>
+                            {roomInfo.capacity && (
+                                <p className="text-xs text-orange-700">
+                                    Capacity: {roomInfo.capacity} beds
+                                </p>
                             )}
                         </div>
                     )}

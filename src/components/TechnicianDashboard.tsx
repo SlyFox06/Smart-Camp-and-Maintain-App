@@ -16,6 +16,7 @@ const TechnicianDashboard = () => {
     const [statusFilter, setStatusFilter] = useState<ComplaintStatus | 'all'>('all');
     const [showUpdateModal, setShowUpdateModal] = useState(false);
     const [selectedComplaintForUpdate, setSelectedComplaintForUpdate] = useState<Complaint | null>(null);
+    const [activeScope, setActiveScope] = useState<'college' | 'hostel'>('college');
     const [isAvailable, setIsAvailable] = useState(currentTechnician?.technician?.isAvailable ?? true);
     const [isToggling, setIsToggling] = useState(false);
 
@@ -51,11 +52,12 @@ const TechnicianDashboard = () => {
 
     useEffect(() => {
         fetchComplaints();
-    }, []);
+    }, [activeScope]);
 
     const fetchComplaints = async () => {
         try {
-            const response = await api.get('/complaints/assigned');
+            setIsLoading(true);
+            const response = await api.get('/complaints/assigned', { params: { scope: activeScope } });
             setComplaints(response.data);
         } catch (error) {
             console.error('Failed to fetch technician tasks', error);
@@ -117,12 +119,34 @@ const TechnicianDashboard = () => {
         <div className="min-h-screen bg-gray-50 p-6">
             <div className="max-w-7xl mx-auto">
                 <div className="mb-8">
-                    <div className="flex items-center justify-between mb-6">
+                    <div className="flex flex-col md:flex-row items-center justify-between mb-6 gap-4">
                         <div>
                             <h1 className="text-4xl font-bold text-gray-900 mb-2">Technician Dashboard</h1>
                             <p className="text-gray-600">Welcome back, {currentTechnician.name}!</p>
                         </div>
                         <div className="flex items-center gap-4">
+                            {/* Scope Selector */}
+                            <div className="flex bg-gray-200 p-1 rounded-xl">
+                                <button
+                                    onClick={() => setActiveScope('college')}
+                                    className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${activeScope === 'college'
+                                        ? 'bg-blue-600 text-white shadow-md'
+                                        : 'text-gray-600 hover:bg-gray-300'
+                                        }`}
+                                >
+                                    College
+                                </button>
+                                <button
+                                    onClick={() => setActiveScope('hostel')}
+                                    className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${activeScope === 'hostel'
+                                        ? 'bg-orange-600 text-white shadow-md'
+                                        : 'text-gray-600 hover:bg-gray-300'
+                                        }`}
+                                >
+                                    Hostel
+                                </button>
+                            </div>
+
                             <button
                                 onClick={handleToggleAvailability}
                                 disabled={isToggling}
@@ -233,12 +257,26 @@ const TechnicianDashboard = () => {
                                             </div>
                                         )}
 
-                                        <div className="flex items-center gap-4 text-sm text-gray-500">
-                                            <span>ID: {complaint.id}</span>
-                                            <span>•</span>
-                                            <span>{complaint.asset?.name}</span>
-                                            <span>•</span>
-                                            <span>{complaint.asset?.building}, {complaint.asset?.room}</span>
+                                        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-gray-500">
+                                            <span>ID: {complaint.id.slice(0, 8)}</span>
+                                            {complaint.asset && (
+                                                <>
+                                                    <span>•</span>
+                                                    <span>Asset: {complaint.asset.name} ({complaint.asset.building}, {complaint.asset.room})</span>
+                                                </>
+                                            )}
+                                            {(complaint as any).room && (
+                                                <>
+                                                    <span>•</span>
+                                                    <span>Room: {(complaint as any).room.roomNumber} ({(complaint as any).room.hostelName})</span>
+                                                </>
+                                            )}
+                                            {(complaint as any).classroom && (
+                                                <>
+                                                    <span>•</span>
+                                                    <span>Classroom: {(complaint as any).classroom.name} ({(complaint as any).classroom.building})</span>
+                                                </>
+                                            )}
                                             <span>•</span>
                                             <span>{getTimeDifference(complaint.createdAt)}</span>
                                         </div>

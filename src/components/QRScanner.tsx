@@ -5,7 +5,7 @@ import QrScanner from 'qr-scanner';
 
 interface QRScannerProps {
     onClose: () => void;
-    onScan?: (data: string) => void;
+    onScan?: (id: string, type: 'asset' | 'room') => void;
 }
 
 const QRScanner = ({ onClose, onScan }: QRScannerProps) => {
@@ -27,15 +27,21 @@ const QRScanner = ({ onClose, onScan }: QRScannerProps) => {
             if (!data) return;
 
             let assetId = '';
+            let roomId = '';
 
             try {
                 const json = JSON.parse(data);
                 assetId = json.assetId || json.id || '';
+                roomId = json.roomId || '';
             } catch (e) {
                 if (data.includes('/report/')) {
                     assetId = data.split('/report/')[1].split('?')[0];
+                } else if (data.includes('/report-room/')) {
+                    roomId = data.split('/report-room/')[1].split('?')[0];
                 } else if (data.includes('assetId=')) {
                     assetId = data.split('assetId=')[1].split('&')[0];
+                } else if (data.includes('roomId=')) {
+                    roomId = data.split('roomId=')[1].split('&')[0];
                 } else {
                     if (data.length > 2 && !data.includes(' ')) {
                         assetId = data;
@@ -43,10 +49,18 @@ const QRScanner = ({ onClose, onScan }: QRScannerProps) => {
                 }
             }
 
-            if (assetId) {
+            if (roomId) {
                 scannerRef.current?.stop();
                 if (onScan) {
-                    onScan(assetId);
+                    onScan(roomId, 'room');
+                } else {
+                    navigate(`/report-room/${roomId}`);
+                }
+                onClose();
+            } else if (assetId) {
+                scannerRef.current?.stop();
+                if (onScan) {
+                    onScan(assetId, 'asset');
                 } else {
                     navigate(`/report/${assetId}`);
                 }

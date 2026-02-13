@@ -31,8 +31,9 @@ const StudentDashboard = ({ prefilledAssetId, prefilledClassroomId, autoOpenForm
     useEffect(() => {
         const fetchComplaints = async () => {
             try {
-                // Modified API call to include scope (default to college for StudentDashboard)
-                const response = await api.get('/complaints/my-complaints', { params: { scope: 'college' } });
+                // Use the passed scope or default to 'college'
+                const currentScope = scope || 'college';
+                const response = await api.get('/complaints/my-complaints', { params: { scope: currentScope } });
                 setComplaints(response.data);
             } catch (error) {
                 console.error('Failed to fetch complaints', error);
@@ -41,7 +42,7 @@ const StudentDashboard = ({ prefilledAssetId, prefilledClassroomId, autoOpenForm
             }
         };
         fetchComplaints();
-    }, []);
+    }, [scope]);
 
     if (!currentUser) return null;
 

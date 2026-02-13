@@ -4,61 +4,69 @@ import { createNotification } from '../services/notificationService';
 
 export const createComplaint = async (req: Request, res: Response) => {
     try {
-        const { title, description, severity, images, video, assetId, scope, category } = req.body;
+        const { title, description, severity, images, video, assetId, roomId, classroomId, scope, category } = req.body;
         const studentId = (req as any).user?.id;
+
+        // Validation: Must have at least one identifier
+        if (!assetId && !roomId && !classroomId) {
+            return res.status(400).json({ message: 'Please provide an asset, room, or classroom ID' });
+        }
 
         // Check for active complaint
         const existing = await prisma.complaint.findFirst({
             where: {
-                assetId,
+                OR: [
+                    { assetId: assetId || undefined },
+                    { roomId: roomId || undefined },
+                    { classroomId: classroomId || undefined }
+                ].filter(Boolean) as any,
                 status: { in: ['reported', 'assigned', 'in_progress', 'verified'] }
             }
         });
 
         if (existing) {
-            return res.status(400).json({ message: 'This asset already has an active complaint.' });
+            return res.status(400).json({ message: 'There is already an active complaint for this item.' });
         }
 
-        // Get asset details to determine required skill
-        const asset = await prisma.asset.findUnique({
-            where: { id: assetId }
-        });
-
-        if (!asset) {
-            return res.status(404).json({ message: 'Asset not found' });
+        // Determine required skill
+        let requiredSkill = 'General';
+        if (assetId) {
+            const asset = await prisma.asset.findUnique({ where: { id: assetId } });
+            if (asset) requiredSkill = getSkillForAssetType(asset.type);
+        } else if (category) {
+            // map hostel/classroom category to skill
+            const cat = category.toLowerCase();
+            if (cat === 'electrical') requiredSkill = 'Electrical';
+            else if (cat === 'plumbing') requiredSkill = 'Plumbing';
+            else if (cat === 'furniture') requiredSkill = 'Carpentry';
+            else if (cat === 'it/network' || cat === 'wifi') requiredSkill = 'Computer';
+            else if (cat === 'cleaning') requiredSkill = 'Cleaner'; // Special case for cleaners if needed
         }
-
-        // Determine required skill based on asset type
-        const requiredSkill = getSkillForAssetType(asset.type);
 
         // Find available technician with matching skill
         const availableTechnician = await prisma.technician.findFirst({
             where: {
-                skill: requiredSkill,
+                skillType: requiredSkill, // skillType in technician model
                 isAvailable: true,
-                user: {
-                    isActive: true
-                }
+                user: { isActive: true }
             },
-            include: {
-                user: true
-            },
-            orderBy: {
-                lastAvailabilityUpdate: 'asc' // Assign to technician who has been available longest
-            }
+            include: { user: true },
+            orderBy: { updatedAt: 'asc' }
         });
 
-        // Create complaint with auto-assignment if technician found
+        // Create complaint
         const complaint = await prisma.complaint.create({
             data: {
                 title,
                 description,
                 severity: severity || 'medium',
-                scope: scope || 'college',
+                scope: scope || (roomId ? 'hostel' : (classroomId ? 'classroom' : 'college')),
                 category,
-                images: images ? JSON.stringify(images) : null,
+                images: images ? (Array.isArray(images) ? JSON.stringify(images) : images) : null,
                 video,
-                assetId,
+                assetId: assetId || null,
+                roomId: roomId || null,
+                classroomId: classroomId || null,
                 studentId,
                 status: availableTechnician ? 'assigned' : 'reported',
                 technicianId: availableTechnician?.userId || null,
@@ -66,21 +74,19 @@ export const createComplaint = async (req: Request, res: Response) => {
             },
             include: {
                 asset: true,
+                room: true,
+                classroom: true,
                 student: true,
-                technician: {
-                    include: {
-                        user: true
-                    }
-                }
+                technician: true
             }
         });
 
-        // Update asset status to under maintenance if assigned
+        // Update status of the related entity if assigned
         if (availableTechnician) {
-            await prisma.asset.update({
-                where: { id: assetId },
-                data: { status: 'under_maintenance' }
-            });
+            const statusUpdate = { status: 'under_maintenance' };
+            if (assetId) await prisma.asset.update({ where: { id: assetId }, data: statusUpdate });
+            if (roomId) await prisma.room.update({ where: { id: roomId }, data: statusUpdate });
+            if (classroomId) await prisma.classroom.update({ where: { id: classroomId }, data: statusUpdate });
 
             // Add status history
             await prisma.statusHistory.create({
@@ -91,47 +97,16 @@ export const createComplaint = async (req: Request, res: Response) => {
                 }
             });
 
-            // Notify technician
-            await createNotification(
-                availableTechnician.userId,
-                'New Complaint Assigned',
-                `You have been auto-assigned: ${title}`,
-                'complaint_assigned',
-                complaint.id
-            );
-
-            // Notify student about assignment
-            await createNotification(
-                studentId,
-                'Complaint Assigned',
-                `Your complaint has been assigned to ${availableTechnician.user.name}`,
-                'complaint_assigned',
-                complaint.id
-            );
+            // Notifications
+            await createNotification(availableTechnician.userId, 'New Assignment', `New complaint: ${title}`, 'complaint_assigned', complaint.id);
+            await createNotification(studentId, 'Complaint Assigned', `Your complaint has been assigned to ${availableTechnician.user.name}`, 'complaint_assigned', complaint.id);
         } else {
-            // No available technician - notify admins
-            const admins = await prisma.user.findMany({
-                where: { role: 'admin' }
-            });
-
+            // Notify admins
+            const admins = await prisma.user.findMany({ where: { role: 'admin' } });
             for (const admin of admins) {
-                await createNotification(
-                    admin.id,
-                    'New Complaint - No Available Technician',
-                    `${complaint.student.name} reported: ${title}. No ${requiredSkill} technician available.`,
-                    'new_complaint',
-                    complaint.id
-                );
+                await createNotification(admin.id, 'New Complaint', `Unassigned issue: ${title}`, 'new_complaint', complaint.id);
             }
-
-            // Notify student that complaint is pending
-            await createNotification(
-                studentId,
-                'Complaint Received',
-                `Your complaint has been registered. We'll assign a technician as soon as one becomes available.`,
-                'complaint_status',
-                complaint.id
-            );
+            await createNotification(studentId, 'Complaint Received', `Your complaint has been registered.`, 'complaint_status', complaint.id);
         }
 
         res.status(201).json(complaint);
@@ -173,10 +148,19 @@ export const getMyComplaints = async (req: Request, res: Response) => {
 export const getAssignedComplaints = async (req: Request, res: Response) => {
     try {
         const technicianId = (req as any).user?.id;
+        const { scope } = req.query;
+
+        const whereClause: any = { technicianId };
+        if (scope) {
+            whereClause.scope = String(scope);
+        }
+
         const complaints = await prisma.complaint.findMany({
-            where: { technicianId },
+            where: whereClause,
             include: {
                 asset: true,
+                room: true,
+                classroom: true,
                 student: true
             },
             orderBy: { createdAt: 'desc' }
@@ -483,7 +467,7 @@ export const handleApproval = async (req: Request, res: Response) => {
             await prisma.statusHistory.create({
                 data: {
                     complaintId: id,
-                    status: complaint.status,
+                    status: complaint.status || 'reported',
                     message: assignmentResult.message
                 }
             });

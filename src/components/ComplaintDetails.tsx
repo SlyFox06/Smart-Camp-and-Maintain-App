@@ -335,31 +335,75 @@ const ComplaintDetails = ({ complaint, onClose }: ComplaintDetailsProps) => {
                         </div>
                     )}
 
-                    {/* Asset Information */}
-                    {complaint.asset && (
+                    {/* Asset / Room / Classroom Information */}
+                    {(complaint.asset || (complaint as any).room || (complaint as any).classroom) && (
                         <div className="bg-blue-50 border border-blue-200 rounded-xl p-6">
-                            <h3 className="font-bold text-gray-900 mb-4 text-lg">Asset Information</h3>
+                            <h3 className="font-bold text-gray-900 mb-4 text-lg">Location Details</h3>
                             <div className="grid md:grid-cols-2 gap-6">
-                                <div>
-                                    <p className="text-sm text-gray-600 mb-1">Asset Name</p>
-                                    <p className="font-bold text-gray-900 text-lg">{complaint.asset.name}</p>
-                                </div>
-                                <div>
-                                    <p className="text-sm text-gray-600 mb-1">Type</p>
-                                    <p className="font-bold text-gray-900 text-lg">
-                                        {complaint.asset.type.replace('_', ' ').toUpperCase()}
-                                    </p>
-                                </div>
-                                <div>
-                                    <p className="text-sm text-gray-600 mb-1">Location</p>
-                                    <p className="font-bold text-gray-900 text-lg">
-                                        {complaint.asset.building}, Floor {complaint.asset.floor}, Room {complaint.asset.room}
-                                    </p>
-                                </div>
-                                <div>
-                                    <p className="text-sm text-gray-600 mb-1">Department</p>
-                                    <p className="font-bold text-gray-900 text-lg">{complaint.asset.department}</p>
-                                </div>
+                                {complaint.asset && (
+                                    <>
+                                        <div>
+                                            <p className="text-sm text-gray-600 mb-1">Asset Name</p>
+                                            <p className="font-bold text-gray-900 text-lg">{complaint.asset.name}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-sm text-gray-600 mb-1">Type</p>
+                                            <p className="font-bold text-gray-900 text-lg">
+                                                {complaint.asset.type.replace('_', ' ').toUpperCase()}
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <p className="text-sm text-gray-600 mb-1">Building/Dept</p>
+                                            <p className="font-bold text-gray-900 text-lg">
+                                                {complaint.asset.building}, {complaint.asset.department}
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <p className="text-sm text-gray-600 mb-1">Floor/Room</p>
+                                            <p className="font-bold text-gray-900 text-lg">
+                                                Floor {complaint.asset.floor}, Room {complaint.asset.room}
+                                            </p>
+                                        </div>
+                                    </>
+                                )}
+
+                                {(complaint as any).room && (
+                                    <>
+                                        <div>
+                                            <p className="text-sm text-gray-600 mb-1">Hostel Room</p>
+                                            <p className="font-bold text-gray-900 text-lg">Room {(complaint as any).room.roomNumber}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-sm text-gray-600 mb-1">Hostel Name</p>
+                                            <p className="font-bold text-gray-900 text-lg">{(complaint as any).room.hostelName}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-sm text-gray-600 mb-1">Location</p>
+                                            <p className="font-bold text-gray-900 text-lg">
+                                                {(complaint as any).room.block}, Floor {(complaint as any).room.floor}
+                                            </p>
+                                        </div>
+                                    </>
+                                )}
+
+                                {(complaint as any).classroom && (
+                                    <>
+                                        <div>
+                                            <p className="text-sm text-gray-600 mb-1">Classroom</p>
+                                            <p className="font-bold text-gray-900 text-lg">{(complaint as any).classroom.name}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-sm text-gray-600 mb-1">Building</p>
+                                            <p className="font-bold text-gray-900 text-lg">{(complaint as any).classroom.building}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-sm text-gray-600 mb-1">Floor/Room</p>
+                                            <p className="font-bold text-gray-900 text-lg">
+                                                Floor {(complaint as any).classroom.floor}, Room {(complaint as any).classroom.roomNumber}
+                                            </p>
+                                        </div>
+                                    </>
+                                )}
                             </div>
                         </div>
                     )}
@@ -554,17 +598,19 @@ const ComplaintDetails = ({ complaint, onClose }: ComplaintDetailsProps) => {
                         </div>
                     )}
 
-                    {complaint.asset && (
+                    {(complaint.asset || (complaint as any).room || (complaint as any).classroom) && (
                         <div className="bg-white border border-gray-200 rounded-xl p-6">
                             <div className="flex items-center gap-2 mb-3">
                                 <MapPin className="w-5 h-5 text-red-500" />
-                                <h3 className="font-semibold text-gray-900">Location</h3>
+                                <h3 className="font-semibold text-gray-900">Mapped Location</h3>
                             </div>
-                            <p className="text-gray-700 mb-2">
-                                {complaint.asset.building}, Floor {complaint.asset.floor}, {complaint.asset.room}
-                            </p>
-                            <p className="text-sm text-gray-500">
-                                Department: {complaint.asset.department}
+                            <p className="text-gray-700">
+                                {complaint.asset
+                                    ? `${complaint.asset.building}, ${complaint.asset.room}`
+                                    : (complaint as any).room
+                                        ? `${(complaint as any).room.hostelName}, Room ${(complaint as any).room.roomNumber}`
+                                        : `${(complaint as any).classroom.building}, ${(complaint as any).classroom.name}`
+                                }
                             </p>
                         </div>
                     )}

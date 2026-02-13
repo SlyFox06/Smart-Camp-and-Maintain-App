@@ -12,27 +12,31 @@ import NotificationBell from './common/NotificationBell';
 
 interface HostelDashboardProps {
     prefilledAssetId?: string;
+    prefilledRoomId?: string;
     autoOpenForm?: boolean;
 }
 
-const HostelDashboard = ({ prefilledAssetId, autoOpenForm }: HostelDashboardProps = {}) => {
+const HostelDashboard = ({ prefilledAssetId, prefilledRoomId, autoOpenForm }: HostelDashboardProps = {}) => {
     const { user: currentUser, logout } = useAuth();
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
     const urlAssetId = searchParams.get('assetId'); // Get assetId from URL if exists
+    const urlRoomId = searchParams.get('roomId'); // Get roomId from URL if exists
 
     // Prioritize prop, then URL param
     const effectiveAssetId = prefilledAssetId || urlAssetId || '';
+    const effectiveRoomId = prefilledRoomId || urlRoomId || '';
 
     // State management
     const [complaints, setComplaints] = useState<Complaint[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [showComplaintForm, setShowComplaintForm] = useState(autoOpenForm || !!urlAssetId);
+    const [showComplaintForm, setShowComplaintForm] = useState(autoOpenForm || !!urlAssetId || !!urlRoomId);
     const [showQRScanner, setShowQRScanner] = useState(false);
     const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState<ComplaintStatus | 'all'>('all');
     const [scannedAssetId, setScannedAssetId] = useState<string>('');
+    const [scannedRoomId, setScannedRoomId] = useState<string>('');
 
     useEffect(() => {
         const fetchComplaints = async () => {
@@ -279,8 +283,10 @@ const HostelDashboard = ({ prefilledAssetId, autoOpenForm }: HostelDashboardProp
                     onClose={() => {
                         setShowComplaintForm(false);
                         setScannedAssetId('');
+                        setScannedRoomId('');
                     }}
                     prefilledAssetId={scannedAssetId || effectiveAssetId}
+                    prefilledRoomId={scannedRoomId || effectiveRoomId}
                     scope="hostel"
                 />
             )}
@@ -288,11 +294,15 @@ const HostelDashboard = ({ prefilledAssetId, autoOpenForm }: HostelDashboardProp
             {showQRScanner && (
                 <QRScanner
                     onClose={() => setShowQRScanner(false)}
-                    onScan={(id) => {
-                        setScannedAssetId(id);
+                    onScan={(id, type) => {
+                        if (type === 'room') {
+                            setScannedRoomId(id);
+                            setScannedAssetId('');
+                        } else {
+                            setScannedAssetId(id);
+                            setScannedRoomId('');
+                        }
                         setShowComplaintForm(true);
-                        // Optionally update URL to reflect state without reloading?
-                        // window.history.replaceState({}, '', `/hostel-student?assetId=${id}`);
                     }}
                 />
             )}

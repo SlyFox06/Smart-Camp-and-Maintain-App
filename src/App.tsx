@@ -42,7 +42,7 @@ function AppContent() {
 
         <Route path="/student" element={
           <ProtectedRoute allowedRoles={['student']}>
-            <StudentDashboard />
+            <StudentDashboard scope="college" />
           </ProtectedRoute>
         } />
 
@@ -76,6 +76,12 @@ function AppContent() {
           </ProtectedRoute>
         } />
 
+        <Route path="/report-room/:roomId" element={
+          <ProtectedRoute allowedRoles={['student']}>
+            <RoomReportHandler />
+          </ProtectedRoute>
+        } />
+
         <Route path="/report-classroom/:classroomId" element={
           <ProtectedRoute allowedRoles={['student']}>
             <ClassroomReportHandler />
@@ -103,6 +109,18 @@ const QuickReportHandler = () => {
     <StudentDashboard
       prefilledAssetId={assetId}
       autoOpenForm={true}
+      scope="college"
+    />
+  );
+};
+
+const RoomReportHandler = () => {
+  const { roomId } = useParams();
+
+  return (
+    <HostelDashboard
+      prefilledRoomId={roomId}
+      autoOpenForm={true}
     />
   );
 };
@@ -118,7 +136,6 @@ const ClassroomReportHandler = () => {
     />
   );
 };
-
 
 
 export default App;
