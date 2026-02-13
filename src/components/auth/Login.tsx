@@ -29,7 +29,7 @@ const Login = () => {
         setIsSubmitting(true);
 
         try {
-            const user = await login(email, password);
+            const user = await login(email.trim(), password);
 
             if (user.requiresPasswordChange) {
                 setShowForceChange(true);

@@ -9,7 +9,8 @@ const router = express.Router();
 router.post('/', createEmergency);
 
 // Protected endpoints for dashboard
-router.get('/', authenticate, authorize(['admin']), getActiveEmergencies);
-router.patch('/:id/status', authenticate, authorize(['admin']), updateEmergencyStatus);
+// Protected endpoints for dashboard
+router.get('/', authenticate, authorize(['admin', 'warden', 'technician']), getActiveEmergencies);
+router.patch('/:id/status', authenticate, authorize(['admin', 'warden', 'technician']), updateEmergencyStatus);
 
 export default router;

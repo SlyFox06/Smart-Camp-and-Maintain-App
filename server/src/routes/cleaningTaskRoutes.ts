@@ -15,12 +15,12 @@ const adminAuth = [authenticate, authorize(['admin'])];
 
 router.get('/', ...adminAuth, getAllCleaningTasks);
 router.post('/generate', ...adminAuth, generateDailyTasks);
-router.put('/:taskId/assign', ...adminAuth, manualAssignTask);
+router.patch('/:taskId/assign', ...adminAuth, manualAssignTask);
 router.get('/statistics', ...adminAuth, getTaskStatistics);
 
 // Cleaner routes
 const cleanerAuth = [authenticate, authorize(['cleaner', 'admin'])];
 
-router.put('/:taskId/status', ...cleanerAuth, updateTaskStatus);
+router.patch('/:taskId/status', ...cleanerAuth, updateTaskStatus);
 
 export default router;

@@ -12,7 +12,8 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your_super_secret_jwt_key_here';
 export const register = async (req: Request, res: Response) => {
     // ... code matching original register function ...
     console.log('Register request received:', req.body.email);
-    const { email, password, name, role, department, phone } = req.body;
+    const { password, name, role, department, phone } = req.body;
+    const email = req.body.email?.toLowerCase().trim();
 
     try {
         if (role !== 'student') {
@@ -57,8 +58,9 @@ export const register = async (req: Request, res: Response) => {
 
 export const login = async (req: Request, res: Response) => {
     // ... code matching original login function ...
-    console.log('Login attempt for:', req.body.email);
-    const { email, password } = req.body;
+    const { password } = req.body;
+    const email = req.body.email?.toLowerCase().trim();
+    console.log(`🔍 [LOGIN DEBUG] Attempt for: "${email}"`);
 
     try {
         const user = await prisma.user.findUnique({
@@ -67,16 +69,19 @@ export const login = async (req: Request, res: Response) => {
         });
 
         if (!user) {
-            console.log('User not found:', email);
+            console.log(`❌ [LOGIN DEBUG] User NOT FOUND: "${email}"`);
             return res.status(401).json({ message: 'Invalid credentials' });
         }
 
+        console.log(`✅ [LOGIN DEBUG] User found: "${user.email}". comparing passwords...`);
         const isMatch = await bcrypt.compare(password, user.password);
+
         if (!isMatch) {
-            console.log('Password mismatch for user:', email);
+            console.log(`❌ [LOGIN DEBUG] Password MISMATCH for: "${email}"`);
             return res.status(401).json({ message: 'Invalid credentials' });
         }
 
+        console.log(`🚀 [LOGIN DEBUG] Login SUCCESS for: "${email}"`);
         const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
 
         console.log('Login successful. Role:', user.role);
@@ -155,7 +160,7 @@ export const changePassword = async (req: Request, res: Response) => {
 };
 
 export const createTechnician = async (req: Request, res: Response) => {
-    const { email, name, phone, skillType, assignedArea, password } = req.body;
+    const { email, name, phone, skillType, assignedArea, password, accessScope } = req.body;
     const adminId = (req as any).user?.id;
 
     try {
@@ -180,6 +185,7 @@ export const createTechnician = async (req: Request, res: Response) => {
                 department: 'Maintenance',
                 isFirstLogin: true,
                 avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${name}`,
+                accessScope: accessScope || 'college'
             }
         });
 
@@ -199,7 +205,7 @@ export const createTechnician = async (req: Request, res: Response) => {
                 data: {
                     userId: adminId,
                     action: 'TECHNICIAN_REGISTERED',
-                    details: `Registered technician: ${name} (${email})`
+                    details: `Registered technician: ${name} (${email}) - Scope: ${accessScope || 'college'}`
                 }
             });
         }
@@ -220,7 +226,7 @@ export const createTechnician = async (req: Request, res: Response) => {
 
 
 export const createCleaner = async (req: Request, res: Response) => {
-    const { email, name, phone, assignedArea, password } = req.body;
+    const { email, name, phone, assignedArea, password, accessScope } = req.body;
     const adminId = (req as any).user?.id;
 
     try {
@@ -245,6 +251,7 @@ export const createCleaner = async (req: Request, res: Response) => {
                 department: 'Housekeeping',
                 isFirstLogin: true,
                 avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${name}`,
+                accessScope: accessScope || 'college'
             }
         });
 

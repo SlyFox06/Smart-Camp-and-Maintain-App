@@ -19,10 +19,10 @@ router.post('/login', login);
 router.post('/change-password', authenticate, changePassword);
 router.patch('/availability', authenticate, authorize(['technician']), updateAvailability);
 
-// Admin only routes
-router.post('/users', authenticate, authorize(['admin']), createUser);
-router.post('/technicians', authenticate, authorize(['admin']), createTechnician);
-router.post('/cleaners', authenticate, authorize(['admin']), createCleaner);
+// Admin and Warden creates users
+router.post('/users', authenticate, authorize(['admin', 'warden']), createUser);
+router.post('/technicians', authenticate, authorize(['admin', 'warden']), createTechnician);
+router.post('/cleaners', authenticate, authorize(['admin', 'warden']), createCleaner);
 
 // Password Reset Routes
 router.post('/forgot-password', forgotPassword);

@@ -126,6 +126,9 @@ export interface AnalyticsData {
         complaints: number;
         resolved: number;
     }>;
+    totalEmergencies?: number;
+    activeEmergencies?: number; // For emergency module
+    emergenciesByType?: Record<string, number>;
 }
 
 // Notification Types

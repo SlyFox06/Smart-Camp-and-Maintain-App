@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
 import prisma from '../db/prisma';
 import { createNotification } from '../services/notificationService';
+import { detectPriority, detectSkill, isEmergency } from '../utils/aiHelpers';
+import { createEmergency } from './emergencyController'; // We can use this or direct logic
 
 export const createComplaint = async (req: Request, res: Response) => {
     try {
@@ -28,27 +30,49 @@ export const createComplaint = async (req: Request, res: Response) => {
             return res.status(400).json({ message: 'There is already an active complaint for this item.' });
         }
 
-        // Determine required skill
-        let requiredSkill = 'General';
-        if (assetId) {
-            const asset = await prisma.asset.findUnique({ where: { id: assetId } });
-            if (asset) requiredSkill = getSkillForAssetType(asset.type);
-        } else if (category) {
-            // map hostel/classroom category to skill
-            const cat = category.toLowerCase();
-            if (cat === 'electrical') requiredSkill = 'Electrical';
-            else if (cat === 'plumbing') requiredSkill = 'Plumbing';
-            else if (cat === 'furniture') requiredSkill = 'Carpentry';
-            else if (cat === 'it/network' || cat === 'wifi') requiredSkill = 'Computer';
-            else if (cat === 'cleaning') requiredSkill = 'Cleaner'; // Special case for cleaners if needed
+        // AI-Based Emergency Detection & Auto-Escalation
+        if (isEmergency(description || title)) {
+            console.log('🚨 AI Emergency Detected! Escalating...');
+            // Map complaint fields to emergency fields
+            req.body.type = category || 'General Emergency';
+            req.body.description = `[AI EMERGENCY] ${description || title}`;
+            req.body.location = {
+                text: title || 'Campus Location',
+                assetId, roomId, classroomId
+            };
+            return createEmergency(req, res);
         }
 
-        // Find available technician with matching skill
+        // AI-Based Complaint Priority Detection
+        const aiPriority = detectPriority(description || title, category);
+        const effectiveSeverity = severity || aiPriority;
+
+        // AI-Based Skill Routing (Correct Staff Assignment)
+        let requiredSkill = detectSkill(description || title, category);
+
+        // Override with specific asset type skill if assetId provided
+        if (assetId) {
+            const asset = await prisma.asset.findUnique({ where: { id: assetId } });
+            if (asset) {
+                const assetSkill = getSkillForAssetType(asset.type);
+                // If AI detected a more specific skill (like Electrical for a fan), keep it, otherwise use asset mapping
+                if (requiredSkill === 'Maintenance Technician') requiredSkill = assetSkill;
+            }
+        }
+
+        // Determine Access Scope for Technician
+        const complaintScope = scope || (roomId ? 'hostel' : 'college');
+        const techScope = complaintScope === 'hostel' ? ['hostel', 'both'] : ['college', 'both'];
+
+        // Find available technician with matching skill AND access scope
         const availableTechnician = await prisma.technician.findFirst({
             where: {
                 skillType: requiredSkill, // skillType in technician model
                 isAvailable: true,
-                user: { isActive: true }
+                user: {
+                    isActive: true,
+                    accessScope: { in: techScope }
+                }
             },
             include: { user: true },
             orderBy: { updatedAt: 'asc' }
@@ -59,7 +83,7 @@ export const createComplaint = async (req: Request, res: Response) => {
             data: {
                 title,
                 description,
-                severity: severity || 'medium',
+                severity: effectiveSeverity,
                 scope: scope || (roomId ? 'hostel' : (classroomId ? 'classroom' : 'college')),
                 category,
                 images: images ? (Array.isArray(images) ? JSON.stringify(images) : images) : null,
@@ -263,11 +287,25 @@ export const updateComplaintStatus = async (req: Request, res: Response) => {
         });
 
         // Update asset status if resolved
-        if ((status === 'resolved' || status === 'closed') && complaint.assetId) {
-            await prisma.asset.update({
-                where: { id: complaint.assetId },
-                data: { status: 'operational' }
-            });
+        if (status === 'resolved' || status === 'closed') {
+            if (complaint.assetId) {
+                await prisma.asset.update({
+                    where: { id: complaint.assetId },
+                    data: { status: 'operational' }
+                });
+            }
+            if (complaint.roomId) {
+                await prisma.room.update({
+                    where: { id: complaint.roomId },
+                    data: { status: 'operational' }
+                });
+            }
+            if (complaint.classroomId) {
+                await prisma.classroom.update({
+                    where: { id: complaint.classroomId },
+                    data: { status: 'operational' }
+                });
+            }
         }
 
         // Notify student
@@ -379,6 +417,17 @@ export const verifyOTP = async (req: Request, res: Response) => {
             }
         });
 
+        // Ensure asset/room/classroom is operational
+        if (complaint.assetId) {
+            await prisma.asset.update({ where: { id: complaint.assetId }, data: { status: 'operational' } });
+        }
+        if (complaint.roomId) {
+            await prisma.room.update({ where: { id: complaint.roomId }, data: { status: 'operational' } });
+        }
+        if (complaint.classroomId) {
+            await prisma.classroom.update({ where: { id: complaint.classroomId }, data: { status: 'operational' } });
+        }
+
         res.json({ message: 'OTP verified successfully', complaint: updated });
     } catch (error: any) {
         console.error('Verify OTP error:', error);
@@ -388,11 +437,11 @@ export const verifyOTP = async (req: Request, res: Response) => {
 // Helper to map asset types to technician skills
 const getSkillForAssetType = (assetType: string): string => {
     const type = assetType.toLowerCase();
-    if (['ac', 'fan', 'light', 'electrical', 'projector'].includes(type)) return 'Electrical'; // Projector often falls under electrical/IT, mapped to Electrical for now based on seed
-    if (['water_cooler', 'tap', 'plumbing', 'restroom'].includes(type)) return 'Plumbing';
-    if (['computer', 'printer', 'wifi', 'internet'].includes(type)) return 'Computer';
-    if (['furniture', 'door', 'window', 'carpentry'].includes(type)) return 'Carpentry';
-    return 'General';
+    if (['ac', 'fan', 'light', 'electrical', 'projector'].includes(type)) return 'Electrician';
+    if (['water_cooler', 'tap', 'plumbing', 'restroom'].includes(type)) return 'Plumber';
+    if (['computer', 'printer', 'wifi', 'internet', 'it'].includes(type)) return 'IT Technician';
+    if (['furniture', 'door', 'window', 'carpentry'].includes(type)) return 'Maintenance Technician';
+    return 'Maintenance Technician';
 };
 
 export const handleApproval = async (req: Request, res: Response) => {
@@ -649,6 +698,18 @@ export const submitFeedback = async (req: Request, res: Response) => {
         if (updated.assetId) {
             await prisma.asset.update({
                 where: { id: updated.assetId },
+                data: { status: 'operational' }
+            });
+        }
+        if (updated.roomId) {
+            await prisma.room.update({
+                where: { id: updated.roomId },
+                data: { status: 'operational' }
+            });
+        }
+        if (updated.classroomId) {
+            await prisma.classroom.update({
+                where: { id: updated.classroomId },
                 data: { status: 'operational' }
             });
         }

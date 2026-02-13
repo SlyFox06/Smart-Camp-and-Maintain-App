@@ -8,6 +8,7 @@ import ComplaintForm from './ComplaintForm';
 import ComplaintDetails from './ComplaintDetails';
 import QRScanner from './QRScanner';
 import NotificationBell from './common/NotificationBell';
+import SOSButton from './emergency/SOSButton';
 import { useNavigate } from 'react-router-dom';
 
 interface StudentDashboardProps {
@@ -299,6 +300,7 @@ const StudentDashboard = ({ prefilledAssetId, prefilledClassroomId, autoOpenForm
                     onClose={() => setSelectedComplaint(null)}
                 />
             )}
+            <SOSButton />
         </div>
     );
 };

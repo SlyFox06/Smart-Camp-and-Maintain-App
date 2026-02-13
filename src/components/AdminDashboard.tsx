@@ -19,6 +19,18 @@ interface Emergency {
     description: string;
     status: 'triggered' | 'responding' | 'resolved';
     reportedAt: string;
+    assignedTo?: {
+        id: string;
+        name: string;
+        email: string;
+        role: string;
+        technician?: {
+            skillType: string;
+            isAvailable: boolean;
+        }
+    };
+    assetId?: string;
+    escalationLevel?: number;
 }
 
 const AdminDashboard = () => {
@@ -55,11 +67,24 @@ const AdminDashboard = () => {
         }
     };
 
+    const handleAssignTechnician = async (emergencyId: string, technicianId: string) => {
+        try {
+            await api.patch(`/emergency/${emergencyId}/status`, { assignedToId: technicianId });
+            fetchEmergencies();
+        } catch (e) {
+            console.error('Assignment failed', e);
+            alert('Failed to assign technician');
+        }
+    };
+
     useEffect(() => {
         fetchEmergencies();
         const interval = setInterval(fetchEmergencies, 5000); // Poll every 5s
         return () => clearInterval(interval);
     }, []);
+
+    // ... rest of component ...
+
 
     useEffect(() => {
         const fetchAnalytics = async () => {
@@ -131,105 +156,25 @@ const AdminDashboard = () => {
                             </div>
                             <div>
                                 <h2 className="text-2xl font-black uppercase tracking-wider">Active Emergency ({emergencies.length})</h2>
-                                <p className="font-medium text-red-100">Click to respond immediately</p>
+                                <p className="font-medium text-red-100">
+                                    {emergencies.filter(e => e.status === 'triggered').length} Unacknowledged • Click to Respond
+                                </p>
                             </div>
                         </div>
                         <button className="bg-white text-red-600 px-6 py-2 rounded-lg font-bold shadow-sm hover:bg-gray-100">
-                            VIEW DETAILS
+                            OPEN CONSOLE
                         </button>
                     </div>
                 )}
 
                 {/* EMERGENCY MODAL */}
                 {showEmergencyModal && (
-                    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-                        <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
-                            <div className="bg-red-600 p-6 flex items-center justify-between">
-                                <div className="flex items-center gap-3 text-white">
-                                    <AlertTriangle className="w-8 h-8" />
-                                    <h2 className="text-2xl font-bold">Emergency Response Console</h2>
-                                </div>
-                                <button
-                                    onClick={() => setShowEmergencyModal(false)}
-                                    className="text-white/80 hover:text-white bg-white/10 hover:bg-white/20 px-4 py-2 rounded-lg"
-                                >
-                                    Close
-                                </button>
-                            </div>
-
-                            <div className="p-6 overflow-y-auto bg-gray-50 flex-1">
-                                {emergencies.length === 0 ? (
-                                    <div className="text-center py-12 text-gray-500">
-                                        <CheckCircle className="w-16 h-16 text-green-500 mx-auto mb-4" />
-                                        <h3 className="text-xl font-bold text-gray-800">All Clear</h3>
-                                        <p>No active emergencies reported.</p>
-                                    </div>
-                                ) : (
-                                    <div className="space-y-4">
-                                        {emergencies.map(em => (
-                                            <div key={em.id} className="bg-white border-l-8 border-red-500 rounded-lg shadow-sm p-6 flex flex-col md:flex-row gap-6">
-                                                <div className="flex-1">
-                                                    <div className="flex items-center gap-3 mb-2">
-                                                        <span className="bg-red-100 text-red-800 px-3 py-1 rounded-full text-sm font-bold uppercase border border-red-200">
-                                                            {em.type}
-                                                        </span>
-                                                        <span className="text-gray-500 text-sm flex items-center gap-1">
-                                                            <Clock className="w-4 h-4" />
-                                                            {new Date(em.reportedAt).toLocaleTimeString()}
-                                                        </span>
-                                                    </div>
-                                                    <h3 className="text-xl font-bold text-gray-900 mb-2">
-                                                        Location: {typeof em.location === 'string' && em.location.startsWith('{') ?
-                                                            (() => {
-                                                                try {
-                                                                    const loc = JSON.parse(em.location);
-                                                                    return loc.latitude ? `GPS: ${loc.latitude.toFixed(4)}, ${loc.longitude.toFixed(4)}` : loc.text;
-                                                                } catch { return em.location }
-                                                            })()
-                                                            : em.location
-                                                        }
-                                                    </h3>
-                                                    <p className="text-gray-700 bg-gray-50 p-3 rounded border border-gray-100">
-                                                        {em.description || "No additional details."}
-                                                    </p>
-                                                </div>
-
-                                                <div className="flex flex-col gap-3 min-w-[200px] justify-center border-l pl-6 border-gray-100">
-                                                    <div className="text-center mb-2">
-                                                        <p className="text-xs text-gray-500 uppercase tracking-wider font-bold mb-1">Current Status</p>
-                                                        <span className={`px-3 py-1 rounded-full text-sm font-bold capitalize ${em.status === 'triggered' ? 'bg-red-100 text-red-700 animate-pulse' :
-                                                            em.status === 'responding' ? 'bg-orange-100 text-orange-700' :
-                                                                'bg-green-100 text-green-700'
-                                                            }`}>
-                                                            {em.status}
-                                                        </span>
-                                                    </div>
-
-                                                    {em.status === 'triggered' && (
-                                                        <button
-                                                            onClick={() => handleEmergencyAction(em.id, 'responding')}
-                                                            className="bg-orange-500 hover:bg-orange-600 text-white py-2 rounded-lg font-bold shadow-md transition-transform active:scale-95"
-                                                        >
-                                                            Mark Responding
-                                                        </button>
-                                                    )}
-
-                                                    {(em.status === 'triggered' || em.status === 'responding') && (
-                                                        <button
-                                                            onClick={() => handleEmergencyAction(em.id, 'resolved')}
-                                                            className="bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg font-bold shadow-md transition-transform active:scale-95"
-                                                        >
-                                                            Mark Resolved
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
+                    <EmergencyConsole
+                        emergencies={emergencies}
+                        onClose={() => setShowEmergencyModal(false)}
+                        onUpdateStatus={handleEmergencyAction}
+                        onAssign={handleAssignTechnician}
+                    />
                 )}
 
                 {/* Header */}
@@ -555,6 +500,203 @@ function ComplaintsTab({ onSelectComplaint }: { onSelectComplaint: (complaint: C
                 </div>
             )}
         </div>
+    );
+}
+
+// ----------------------------------------------------------------------
+// Emergency Console Component
+// ----------------------------------------------------------------------
+
+function EmergencyConsole({ emergencies, onClose, onUpdateStatus, onAssign }: {
+    emergencies: Emergency[];
+    onClose: () => void;
+    onUpdateStatus: (id: string, status: string) => void;
+    onAssign: (id: string, techId: string) => void;
+}) {
+    const [technicians, setTechnicians] = useState<any[]>([]);
+
+    useEffect(() => {
+        api.get('/admin/users?role=technician').then(res => setTechnicians(res.data));
+    }, []);
+
+    // Helper to get location string
+    const getLocation = (loc: string) => {
+        try {
+            if (loc.startsWith('{')) {
+                const l = JSON.parse(loc);
+                return l.text || `GPS: ${l.latitude}, ${l.longitude}`;
+            }
+            return loc;
+        } catch { return loc; }
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl max-w-5xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
+                {/* Header */}
+                <div className="bg-gradient-to-r from-red-600 to-red-700 p-6 flex items-center justify-between text-white shadow-md">
+                    <div className="flex items-center gap-4">
+                        <div className="p-2 bg-white/20 rounded-full animate-pulse">
+                            <AlertTriangle className="w-8 h-8" />
+                        </div>
+                        <div>
+                            <h2 className="text-2xl font-bold tracking-wide">Emergency Response Console</h2>
+                            <p className="text-red-100 text-sm">Real-time monitoring & command center</p>
+                        </div>
+                    </div>
+                    <button onClick={onClose} className="text-white/80 hover:text-white bg-white/10 hover:bg-white/20 px-4 py-2 rounded-lg font-medium transition-colors">
+                        Close Console
+                    </button>
+                </div>
+
+                {/* Content */}
+                <div className="p-6 overflow-y-auto bg-gray-50 flex-1">
+                    {emergencies.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center h-full text-center py-20 opacity-50">
+                            <CheckCircle className="w-24 h-24 text-green-500 mb-6" />
+                            <h3 className="text-2xl font-bold text-gray-800">All Systems Normal</h3>
+                            <p className="text-gray-500 text-lg">No active emergency alerts.</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-6">
+                            {emergencies.map(em => {
+                                const isEscalated = (em.escalationLevel || 0) > 0;
+                                return (
+                                    <div key={em.id} className={`bg-white border-l-8 ${isEscalated ? 'border-purple-600 ring-2 ring-purple-500/20' : 'border-red-500'} rounded-xl shadow-sm p-6 flex flex-col lg:flex-row gap-8 relative overflow-hidden group hover:shadow-lg transition-shadow`}>
+                                        {/* Background pattern for escalation */}
+                                        {isEscalated && (
+                                            <div className="absolute top-0 right-0 p-2 bg-purple-600 text-white text-xs font-bold uppercase tracking-widest rounded-bl-xl shadow-md z-10">
+                                                Escalated lvl {em.escalationLevel}
+                                            </div>
+                                        )}
+
+                                        <div className="flex-1 space-y-4">
+                                            {/* Top Row: Type, Timer, Status */}
+                                            <div className="flex flex-wrap items-center gap-4">
+                                                <span className="bg-red-100 text-red-800 px-4 py-1.5 rounded-full text-sm font-bold uppercase border border-red-200 shadow-sm flex items-center gap-2">
+                                                    <AlertTriangle className="w-4 h-4" />
+                                                    {em.type}
+                                                </span>
+                                                <EmergencyTimer startTime={em.reportedAt} />
+                                                <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border ${em.status === 'triggered' ? 'bg-red-50 text-red-600 border-red-200 animate-pulse' :
+                                                        em.status === 'responding' ? 'bg-orange-50 text-orange-600 border-orange-200' :
+                                                            'bg-green-50 text-green-600 border-green-200'
+                                                    }`}>
+                                                    {em.status}
+                                                </span>
+                                            </div>
+
+                                            {/* Details */}
+                                            <div>
+                                                <h3 className="text-2xl font-bold text-gray-900 mb-2">{getLocation(em.location)}</h3>
+                                                {em.assetId && (
+                                                    <div className="inline-flex items-center gap-2 bg-gray-100 px-3 py-1 rounded text-xs font-mono text-gray-600 mb-3">
+                                                        <Box className="w-3 h-3" />
+                                                        ASSET ID: {em.assetId.split('-')[0].toUpperCase()}...
+                                                    </div>
+                                                )}
+                                                <p className="text-gray-700 bg-gray-50 p-4 rounded-lg border border-gray-200 italic">
+                                                    "{em.description || "No specific details provided."}"
+                                                </p>
+                                            </div>
+
+                                            {/* Assignment Info */}
+                                            <div className="flex items-center gap-4 bg-blue-50/50 p-3 rounded-lg border border-blue-100">
+                                                <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 shrink-0">
+                                                    <Wrench className="w-5 h-5" />
+                                                </div>
+                                                <div className="flex-1">
+                                                    <p className="text-xs text-blue-500 font-bold uppercase tracking-wide">Assigned Responder</p>
+                                                    {em.assignedTo ? (
+                                                        <p className="font-semibold text-gray-800">{em.assignedTo.name}
+                                                            <span className="text-gray-400 font-normal ml-2 text-sm">({em.assignedTo.technician?.skillType || em.assignedTo.role})</span>
+                                                        </p>
+                                                    ) : (
+                                                        <p className="text-red-500 font-bold italic">Unassigned - Action Required</p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Controls Section */}
+                                        <div className="lg:w-72 flex flex-col gap-3 justify-center border-t lg:border-t-0 lg:border-l pt-6 lg:pt-0 lg:pl-8 border-gray-100">
+                                            <p className="text-xs text-gray-400 font-bold uppercase tracking-wider mb-2 text-center lg:text-left">Response Actions</p>
+
+                                            {/* Reassign Dropdown */}
+                                            <div className="relative group/assign">
+                                                <select
+                                                    className="w-full p-2.5 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:border-blue-400 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all cursor-pointer"
+                                                    onChange={(e) => {
+                                                        if (e.target.value) onAssign(em.id, e.target.value);
+                                                    }}
+                                                    value=""
+                                                >
+                                                    <option value="" disabled>Assign / Reassign Staff...</option>
+                                                    {technicians.map(t => (
+                                                        <option key={t.id} value={t.id} disabled={!t.technician?.isAvailable}>
+                                                            {t.name} {!t.technician?.isAvailable ? '(Busy)' : `(${t.technician?.skillType})`}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                                <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">▼</div>
+                                            </div>
+
+                                            {/* Status Buttons */}
+                                            {em.status === 'triggered' && (
+                                                <button
+                                                    onClick={() => onUpdateStatus(em.id, 'responding')}
+                                                    className="w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-lg font-bold shadow-md hover:shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2"
+                                                >
+                                                    <Clock className="w-5 h-5" />
+                                                    Acknowledge & Respond
+                                                </button>
+                                            )}
+
+                                            {(em.status === 'triggered' || em.status === 'responding') && (
+                                                <button
+                                                    onClick={() => onUpdateStatus(em.id, 'resolved')}
+                                                    className="w-full bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg font-bold shadow-md hover:shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2"
+                                                >
+                                                    <CheckCircle className="w-5 h-5" />
+                                                    Mark Resolved
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+function EmergencyTimer({ startTime }: { startTime: string }) {
+    const [elapsed, setElapsed] = useState('');
+    const [isUrgent, setIsUrgent] = useState(false);
+
+    useEffect(() => {
+        const interval = setInterval(() => {
+            const start = new Date(startTime).getTime();
+            const now = new Date().getTime();
+            const diff = Math.floor((now - start) / 1000); // seconds
+
+            if (diff > 300) setIsUrgent(true); // > 5 mins
+
+            const mins = Math.floor(diff / 60);
+            const secs = diff % 60;
+            setElapsed(`${mins}m ${secs}s`);
+        }, 1000);
+        return () => clearInterval(interval);
+    }, [startTime]);
+
+    return (
+        <span className={`text-sm font-mono font-bold flex items-center gap-2 px-3 py-1 rounded bg-gray-100 ${isUrgent ? 'text-red-600 animate-pulse' : 'text-gray-600'}`}>
+            <Clock className="w-4 h-4" />
+            {elapsed}
+        </span>
     );
 }
 

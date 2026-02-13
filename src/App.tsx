@@ -5,6 +5,7 @@ import HostelDashboard from './components/HostelDashboard';
 import TechnicianDashboard from './components/TechnicianDashboard';
 import AdminDashboard from './components/AdminDashboard';
 import WardenDashboard from './components/WardenDashboard';
+import CleanerDashboard from './components/CleanerDashboard';
 import Login from './components/auth/Login';
 import Signup from './components/auth/Signup';
 import ForgotPassword from './components/auth/ForgotPassword';
@@ -67,6 +68,12 @@ function AppContent() {
         <Route path="/warden" element={
           <ProtectedRoute allowedRoles={['warden']}>
             <WardenDashboard />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/cleaner" element={
+          <ProtectedRoute allowedRoles={['cleaner']}>
+            <CleanerDashboard />
           </ProtectedRoute>
         } />
 

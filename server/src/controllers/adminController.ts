@@ -384,7 +384,10 @@ export const getAnalytics = async (req: Request, res: Response) => {
             activeComplaints,
             resolvedComplaints,
             byStatus,
-            bySeverity
+            bySeverity,
+            totalEmergencies,
+            activeEmergenciesCount,
+            emergenciesByType
         ] = await Promise.all([
             prisma.complaint.count({ where: whereClause }),
             prisma.complaint.count({ where: { ...whereClause, status: { in: ['reported', 'assigned', 'in_progress'] } } }),
@@ -398,21 +401,27 @@ export const getAnalytics = async (req: Request, res: Response) => {
                 by: ['severity'],
                 where: whereClause,
                 _count: true
+            }),
+            prisma.emergency.count(), // Emergencies usually global, or filter by scope if possible/needed? Schema doesn't have scope on emergency easily, but location might. Let's keep it global for now.
+            prisma.emergency.count({ where: { status: { in: ['triggered', 'responding'] } } }),
+            prisma.emergency.groupBy({
+                by: ['type'],
+                _count: { _all: true }
             })
         ]);
 
-        // ... (rest of the function is the same, just reconstructing the maps)
-        const complaintsByStatus = byStatus.reduce((acc, curr) => {
-            if (curr.status) {
-                acc[curr.status] = curr._count;
-            }
+        const complaintsByStatus = byStatus.reduce((acc: any, curr) => {
+            if (curr.status) acc[curr.status] = curr._count;
             return acc;
         }, {} as Record<string, number>);
 
-        const complaintsBySeverity = bySeverity.reduce((acc, curr) => {
-            if (curr.severity) {
-                acc[curr.severity] = curr._count;
-            }
+        const complaintsBySeverity = bySeverity.reduce((acc: any, curr) => {
+            if (curr.severity) acc[curr.severity] = curr._count;
+            return acc;
+        }, {} as Record<string, number>);
+
+        const emergenciesByTypeData = emergenciesByType.reduce((acc: any, curr) => {
+            if (curr.type) acc[curr.type] = curr._count._all;
             return acc;
         }, {} as Record<string, number>);
 
@@ -422,7 +431,10 @@ export const getAnalytics = async (req: Request, res: Response) => {
             resolvedComplaints,
             averageResolutionTime: 45,
             complaintsByStatus,
-            complaintsBySeverity
+            complaintsBySeverity,
+            totalEmergencies,
+            activeEmergencies: activeEmergenciesCount,
+            emergenciesByType: emergenciesByTypeData
         });
     } catch (error: any) {
         console.error('Analytics error:', error);

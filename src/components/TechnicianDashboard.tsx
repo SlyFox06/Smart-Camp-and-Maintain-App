@@ -16,7 +16,9 @@ const TechnicianDashboard = () => {
     const [statusFilter, setStatusFilter] = useState<ComplaintStatus | 'all'>('all');
     const [showUpdateModal, setShowUpdateModal] = useState(false);
     const [selectedComplaintForUpdate, setSelectedComplaintForUpdate] = useState<Complaint | null>(null);
-    const [activeScope, setActiveScope] = useState<'college' | 'hostel'>('college');
+    const [activeScope, setActiveScope] = useState<'college' | 'hostel'>(
+        currentTechnician?.accessScope === 'hostel' ? 'hostel' : 'college'
+    );
     const [isAvailable, setIsAvailable] = useState(currentTechnician?.technician?.isAvailable ?? true);
     const [isToggling, setIsToggling] = useState(false);
 
@@ -50,9 +52,25 @@ const TechnicianDashboard = () => {
         }
     };
 
+    const [emergencies, setEmergencies] = useState<any[]>([]);
+
     useEffect(() => {
         fetchComplaints();
+        fetchEmergencies();
+
+        // Poll for emergencies every 30 seconds
+        const interval = setInterval(fetchEmergencies, 30000);
+        return () => clearInterval(interval);
     }, [activeScope]);
+
+    const fetchEmergencies = async () => {
+        try {
+            const response = await api.get('/emergency');
+            setEmergencies(response.data);
+        } catch (error) {
+            console.error('Failed to fetch emergencies', error);
+        }
+    };
 
     const fetchComplaints = async () => {
         try {
@@ -63,6 +81,18 @@ const TechnicianDashboard = () => {
             console.error('Failed to fetch technician tasks', error);
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    const handleEmergencyAction = async (id: string, action: 'respond' | 'resolve') => {
+        try {
+            const status = action === 'respond' ? 'responding' : 'resolved';
+            await api.patch(`/emergency/${id}/status`, { status });
+            fetchEmergencies(); // Refresh
+            alert(`Emergency marked as ${status}`);
+        } catch (error) {
+            console.error('Failed to update emergency', error);
+            alert('Failed to update emergency status');
         }
     };
 
@@ -127,24 +157,36 @@ const TechnicianDashboard = () => {
                         <div className="flex items-center gap-4">
                             {/* Scope Selector */}
                             <div className="flex bg-gray-200 p-1 rounded-xl">
-                                <button
-                                    onClick={() => setActiveScope('college')}
-                                    className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${activeScope === 'college'
-                                        ? 'bg-blue-600 text-white shadow-md'
-                                        : 'text-gray-600 hover:bg-gray-300'
-                                        }`}
-                                >
-                                    College
-                                </button>
-                                <button
-                                    onClick={() => setActiveScope('hostel')}
-                                    className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${activeScope === 'hostel'
-                                        ? 'bg-orange-600 text-white shadow-md'
-                                        : 'text-gray-600 hover:bg-gray-300'
-                                        }`}
-                                >
-                                    Hostel
-                                </button>
+                                {currentTechnician?.accessScope === 'hostel' ? (
+                                    <span className="px-4 py-1.5 rounded-lg text-sm font-bold bg-orange-600 text-white shadow-md cursor-default">
+                                        Hostel Data
+                                    </span>
+                                ) : currentTechnician?.accessScope === 'college' ? (
+                                    <span className="px-4 py-1.5 rounded-lg text-sm font-bold bg-blue-600 text-white shadow-md cursor-default">
+                                        College Data
+                                    </span>
+                                ) : (
+                                    <>
+                                        <button
+                                            onClick={() => setActiveScope('college')}
+                                            className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${activeScope === 'college'
+                                                ? 'bg-blue-600 text-white shadow-md'
+                                                : 'text-gray-600 hover:bg-gray-300'
+                                                }`}
+                                        >
+                                            College
+                                        </button>
+                                        <button
+                                            onClick={() => setActiveScope('hostel')}
+                                            className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${activeScope === 'hostel'
+                                                ? 'bg-orange-600 text-white shadow-md'
+                                                : 'text-gray-600 hover:bg-gray-300'
+                                                }`}
+                                        >
+                                            Hostel
+                                        </button>
+                                    </>
+                                )}
                             </div>
 
                             <button
@@ -167,6 +209,58 @@ const TechnicianDashboard = () => {
                             </button>
                         </div>
                     </div>
+
+
+                    {/* Active Emergencies Section */}
+                    {emergencies.length > 0 && (
+                        <div className="mb-8 p-6 bg-red-50 border border-red-200 rounded-xl shadow-sm">
+                            <h2 className="text-2xl font-bold text-red-700 mb-4 flex items-center gap-2">
+                                <AlertCircle className="w-6 h-6 animate-pulse" />
+                                Assigned Emergencies
+                            </h2>
+                            <div className="space-y-4">
+                                {emergencies.map((em: any) => (
+                                    <div key={em.id} className="bg-white p-4 rounded-lg shadow-md border-l-4 border-red-500 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                                        <div>
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <span className="bg-red-100 text-red-700 px-2 py-0.5 rounded text-xs font-bold uppercase">
+                                                    {em.type}
+                                                </span>
+                                                <span className="text-gray-500 text-sm font-medium">
+                                                    {new Date(em.reportedAt).toLocaleTimeString()}
+                                                </span>
+                                                <span className={`px-2 py-0.5 rounded text-xs font-bold uppercase ${em.status === 'responding' ? 'bg-orange-100 text-orange-700' : 'bg-red-100 text-red-700'}`}>
+                                                    {em.status}
+                                                </span>
+                                            </div>
+                                            <p className="font-bold text-gray-800 text-lg">
+                                                {typeof em.location === 'string' ? em.location : (em.location as any).text || 'Location unavailable'}
+                                            </p>
+                                            <p className="text-gray-600">{em.description || 'No description provided.'}</p>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            {em.status === 'triggered' && (
+                                                <button
+                                                    onClick={() => handleEmergencyAction(em.id, 'respond')}
+                                                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-sm transition-colors"
+                                                >
+                                                    Acknowledge & Respond
+                                                </button>
+                                            )}
+                                            {em.status === 'responding' && (
+                                                <button
+                                                    onClick={() => handleEmergencyAction(em.id, 'resolve')}
+                                                    className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg shadow-sm transition-colors"
+                                                >
+                                                    Resolve
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
 
                     <div className="grid md:grid-cols-4 gap-6">
                         {stats.map((stat, index) => {

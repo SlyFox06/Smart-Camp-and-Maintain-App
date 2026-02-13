@@ -19,6 +19,6 @@ router.post('/', ...adminAuth, createCleaner);
 const cleanerAuth = [authenticate, authorize(['cleaner', 'admin'])];
 
 router.get('/me', ...cleanerAuth, getCleanerByUserId);
-router.put('/:cleanerId/availability', ...cleanerAuth, updateAvailability);
+router.patch('/:cleanerId/availability', ...cleanerAuth, updateAvailability);
 
 export default router;

@@ -27,7 +27,7 @@ const UserManagement = ({ role, scope }: UserManagementProps) => {
         email: '',
         phone: '',
         department: '',
-        skillType: '',
+        skillType: role === 'cleaner' ? 'Cleaner' : '',
         assignedArea: '',
         accessScope: scope || 'college'
     });
@@ -86,7 +86,8 @@ const UserManagement = ({ role, scope }: UserManagementProps) => {
                     phone: newUser.phone,
                     skillType: newUser.skillType,
                     assignedArea: newUser.assignedArea,
-                    password: (newUser as any).password
+                    password: (newUser as any).password,
+                    accessScope: newUser.accessScope
                 });
             } else if (role === 'cleaner') {
                 response = await api.post('/auth/cleaners', {
@@ -94,7 +95,8 @@ const UserManagement = ({ role, scope }: UserManagementProps) => {
                     email: newUser.email,
                     phone: newUser.phone,
                     assignedArea: newUser.assignedArea,
-                    password: (newUser as any).password
+                    password: (newUser as any).password,
+                    accessScope: newUser.accessScope
                 });
             } else {
                 response = await api.post('/auth/users', {
@@ -112,7 +114,7 @@ const UserManagement = ({ role, scope }: UserManagementProps) => {
             alert(`User created successfully! Login credentials have been sent to ${newUser.email}`);
             setUsers([...users, response.data.technician || response.data.cleaner || response.data.user || response.data]);
             setIsAddModalOpen(false);
-            setNewUser({ name: '', email: '', phone: '', department: '', skillType: '', assignedArea: '', accessScope: scope || 'college' });
+            setNewUser({ name: '', email: '', phone: '', department: '', skillType: role === 'cleaner' ? 'Cleaner' : '', assignedArea: '', accessScope: scope || 'college' });
             fetchUsers(); // Refresh list to get full data
         } catch (error: any) {
             console.error('Failed to create user', error);
@@ -187,7 +189,7 @@ const UserManagement = ({ role, scope }: UserManagementProps) => {
                                                     `Area: ${user.cleaner?.assignedArea}` :
                                                     user.department}
                                         </p>
-                                        {role === 'student' && user.accessScope && (
+                                        {user.accessScope && (
                                             <p className="text-xs text-blue-600 mt-1 capitalize">
                                                 Scope: {user.accessScope}
                                             </p>
@@ -302,18 +304,6 @@ const UserManagement = ({ role, scope }: UserManagementProps) => {
                                                 placeholder="e.g. CS, EE"
                                             />
                                         </div>
-                                        <div>
-                                            <label className="block text-sm font-medium mb-1 text-gray-700">Access Scope</label>
-                                            <select
-                                                value={newUser.accessScope}
-                                                onChange={e => setNewUser({ ...newUser, accessScope: e.target.value as any })}
-                                                className="input-field-light"
-                                            >
-                                                <option value="college">College Only</option>
-                                                <option value="hostel">Hostel Only</option>
-                                                <option value="both">Both (College & Hostel)</option>
-                                            </select>
-                                        </div>
                                     </>
                                 ) : (
                                     <div>
@@ -324,11 +314,32 @@ const UserManagement = ({ role, scope }: UserManagementProps) => {
                                             onChange={e => setNewUser({ ...newUser, skillType: e.target.value })}
                                             className="input-field-light"
                                         >
-                                            <option value="">Select Skill</option>
-                                            <option value="Electrician">Electrician</option>
-                                            <option value="Plumber">Plumber</option>
-                                            <option value="Maintenance Technician">Maintenance Technician</option>
-                                            <option value="IT Technician">IT Technician</option>
+                                            {role === 'technician' ? (
+                                                <>
+                                                    <option value="">Select Skill</option>
+                                                    <option value="Electrician">Electrician</option>
+                                                    <option value="Plumber">Plumber</option>
+                                                    <option value="Maintenance Technician">Maintenance Technician</option>
+                                                    <option value="IT Technician">IT Technician</option>
+                                                </>
+                                            ) : (
+                                                <option value="Cleaner">Cleaner</option>
+                                            )}
+                                        </select>
+                                    </div>
+                                )}
+                                {(role !== 'warden') && (
+                                    <div className={`${role === 'student' ? '' : 'col-span-2'}`}>
+                                        <label className="block text-sm font-medium mb-1 text-gray-700">Access Scope</label>
+                                        <select
+                                            value={newUser.accessScope}
+                                            onChange={e => setNewUser({ ...newUser, accessScope: e.target.value as any })}
+                                            className="input-field-light"
+                                            disabled={!!scope} // Disable if specific scope is passed (e.g. from Warden Dashboard)
+                                        >
+                                            <option value="college">College Only</option>
+                                            <option value="hostel">Hostel Only</option>
+                                            <option value="both">Both (College & Hostel)</option>
                                         </select>
                                     </div>
                                 )}

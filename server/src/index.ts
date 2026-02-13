@@ -106,8 +106,13 @@ app.get('/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date() });
 });
 
+// Schedule Escalation Check
+const { checkEscalations } = require('./services/escalationService');
+setInterval(checkEscalations, 60000); // Check every minute
+
 app.listen(PORT, () => {
     console.log(`🚀 Server running on http://localhost:${PORT}`);
     console.log(`✅ Using Prisma via Supabase PostgreSQL`);
     console.log(`🔄 Server restarted with new email config at ${new Date().toLocaleTimeString()}`);
+    console.log(`⏱️ Escalation Service Started`);
 });

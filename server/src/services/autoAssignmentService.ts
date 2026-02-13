@@ -6,7 +6,7 @@ const CATEGORY_TO_SKILL_MAP: { [key: string]: string } = {
     'Plumbing': 'Plumber',
     'Furniture': 'Maintenance Technician',
     'IT/Network': 'IT Technician',
-    'IT / Network': 'IT Technician', // Handle variation
+    'IT / Network': 'IT Technician',
     'Wifi': 'IT Technician',
     'Cleanliness': 'Cleaner',
     'Other': 'Maintenance Technician'

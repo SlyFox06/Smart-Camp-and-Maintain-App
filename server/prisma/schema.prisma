@@ -28,8 +28,10 @@ model User {
   studentsComplaints   Complaint[]    @relation("StudentComplaints")
   technicianComplaints Complaint[]    @relation("TechnicianComplaints")
   notifications        Notification[]
+  emergencies          Emergency[]    @relation("Reporter")
   technician           Technician?
-  cleaner              Cleaner?       @relation("CleanerUser")
+  assignedEmergencies Emergency[] @relation("AssignedResponder")
+  cleaner             Cleaner?       @relation("CleanerUser")
 
   @@index([email], map: "idx_users_email")
   @@index([role], map: "idx_users_role")
@@ -49,6 +51,7 @@ model Asset {
   createdAt  DateTime?   @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt  DateTime?   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   complaints Complaint[]
+  emergencies Emergency[]
 
   @@index([status], map: "idx_assets_status")
   @@map("assets")
@@ -222,6 +225,7 @@ model CleaningTask {
   assignedAt      DateTime? @map("assigned_at") @db.Timestamptz(6)
   completedAt     DateTime? @map("completed_at") @db.Timestamptz(6)
   notes           String?   @db.Text
+  images          String?   @db.Text
   createdAt       DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime? @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   classroom       Classroom @relation(fields: [classroomId], references: [id], onDelete: Cascade, onUpdate: NoAction)
@@ -237,15 +241,31 @@ model CleaningTask {
 
 model Emergency {
   id              String         @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  type            String         @db.VarChar(50)
-  location        String
+  type            String         @db.VarChar(50) // Fire, Medical, Security, Maintenance
+  location        String         // Building, floor, room or GPS coords
   description     String?
-  status          String         @default("triggered") @db.VarChar(50)
+  status          String         @default("triggered") @db.VarChar(50) // triggered, acknowledged, resolved, false_alarm
+  evidence        String?        @db.Text // JSON or URL array for images/videos
+  
+  reporterId      String?        @map("reporter_id") @db.Uuid
+  assetId         String?        @map("asset_id") @db.Uuid
+  
+  isOfflineSync   Boolean?       @default(false) @map("is_offline_sync")
+  
   reportedAt      DateTime       @default(now()) @map("reported_at") @db.Timestamptz(6)
   respondedAt     DateTime?      @map("responded_at") @db.Timestamptz(6)
   resolvedAt      DateTime?      @map("resolved_at") @db.Timestamptz(6)
+  
+  assignedToId    String?        @map("assigned_to_id") @db.Uuid
+  assignedTo      User?          @relation("AssignedResponder", fields: [assignedToId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  escalationLevel Int            @default(0) @map("escalation_level")
+  
+  reporter        User?          @relation("Reporter", fields: [reporterId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  asset           Asset?         @relation(fields: [assetId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   notifications   Notification[]
   
   @@index([status], map: "idx_emergencies_status")
+  @@index([reporterId], map: "idx_emergencies_reporter")
+  @@index([assignedToId], map: "idx_emergencies_assigned")
   @@map("emergencies")
 }

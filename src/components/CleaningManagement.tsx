@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Sparkles, Users, Calendar, CheckCircle, Clock, AlertCircle, UserCheck, UserX, Plus, RefreshCw } from 'lucide-react';
+import { Sparkles, Users, Calendar, CheckCircle, Clock, AlertCircle, UserCheck, UserX, Plus, RefreshCw, Image, X } from 'lucide-react';
 import api from '../services/api';
 
 interface Cleaner {
@@ -27,6 +27,7 @@ interface CleaningTask {
     assignedAt: string | null;
     completedAt: string | null;
     notes: string | null;
+    images?: string | null;
     classroom: {
         id: string;
         name: string;
@@ -54,6 +55,7 @@ const CleaningManagement = () => {
     const [selectedTask, setSelectedTask] = useState<CleaningTask | null>(null);
     const [selectedCleanerId, setSelectedCleanerId] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
+    const [viewingTask, setViewingTask] = useState<CleaningTask | null>(null);
 
     useEffect(() => {
         fetchData();
@@ -98,7 +100,7 @@ const CleaningManagement = () => {
         if (!selectedTask || !selectedCleanerId) return;
 
         try {
-            await api.put(`/cleaning-tasks/${selectedTask.id}/assign`, { cleanerId: selectedCleanerId });
+            await api.patch(`/cleaning-tasks/${selectedTask.id}/assign`, { cleanerId: selectedCleanerId });
             alert('✅ Task assigned successfully!');
             setShowAssignModal(false);
             setSelectedTask(null);
@@ -312,6 +314,14 @@ const CleaningManagement = () => {
                                     </div>
                                 </div>
 
+                                {task.status === 'completed' && (
+                                    <button
+                                        onClick={() => setViewingTask(task)}
+                                        className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-all text-sm font-bold border border-blue-100 shadow-sm"
+                                    >
+                                        <Image className="w-4 h-4" /> View Proof
+                                    </button>
+                                )}
                                 {task.status !== 'completed' && (
                                     <button
                                         onClick={() => {
@@ -329,6 +339,90 @@ const CleaningManagement = () => {
                     </div>
                 )}
             </div>
+
+            {/* Task Details / Proof Modal */}
+            {viewingTask && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-3xl shadow-2xl max-w-2xl w-full overflow-hidden transition-all animate-in fade-in zoom-in duration-300">
+                        <div className="bg-emerald-600 p-6 text-white flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <Sparkles className="w-6 h-6" />
+                                <h3 className="text-xl font-bold uppercase tracking-tight">Cleaning Completion Proof</h3>
+                            </div>
+                            <button onClick={() => setViewingTask(null)} className="p-2 hover:bg-white/20 rounded-full transition-colors">
+                                <X className="w-6 h-6" />
+                            </button>
+                        </div>
+
+                        <div className="p-8 space-y-6 overflow-y-auto max-h-[80vh]">
+                            {/* Task Summary */}
+                            <div className="grid grid-cols-2 gap-6 bg-gray-50 p-6 rounded-2xl border border-gray-100">
+                                <div className="space-y-1">
+                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">Classroom</p>
+                                    <p className="text-xl font-black text-emerald-700">{viewingTask.classroom.name}</p>
+                                </div>
+                                <div className="space-y-1">
+                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">Cleaner</p>
+                                    <p className="text-xl font-black text-emerald-700">{viewingTask.cleaner?.user.name}</p>
+                                </div>
+                                <div className="space-y-1">
+                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">Status</p>
+                                    <span className="inline-block px-3 py-1 bg-green-100 text-green-700 text-xs font-black rounded-full uppercase tracking-tighter">Completed</span>
+                                </div>
+                                <div className="space-y-1">
+                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">Finished At</p>
+                                    <p className="text-base font-bold text-gray-800">{viewingTask.completedAt ? new Date(viewingTask.completedAt).toLocaleString() : 'N/A'}</p>
+                                </div>
+                            </div>
+
+                            {/* Cleaning Notes */}
+                            <div className="space-y-2">
+                                <h4 className="text-sm font-black text-gray-700 uppercase tracking-[0.2em] flex items-center gap-2">
+                                    <Clock className="w-4 h-4 text-emerald-500" />
+                                    Cleaner's Report
+                                </h4>
+                                <div className="p-4 bg-emerald-50/50 border border-emerald-100 rounded-2xl text-gray-700 italic text-lg leading-relaxed shadow-inner">
+                                    {viewingTask.notes || "No additional notes provided."}
+                                </div>
+                            </div>
+
+                            {/* Proof Image */}
+                            <div className="space-y-3">
+                                <h4 className="text-sm font-black text-gray-700 uppercase tracking-[0.2em] flex items-center gap-2">
+                                    <Image className="w-4 h-4 text-blue-500" />
+                                    Visual Confirmation
+                                </h4>
+                                {viewingTask.images ? (
+                                    <div className="rounded-2xl overflow-hidden shadow-xl border-4 border-white">
+                                        {(() => {
+                                            try {
+                                                const imgSource = viewingTask.images.startsWith('[')
+                                                    ? JSON.parse(viewingTask.images)[0]
+                                                    : viewingTask.images;
+                                                return <img src={imgSource} alt="Proof" className="w-full h-auto object-cover hover:scale-105 transition-transform duration-500" />;
+                                            } catch (e) {
+                                                return <img src={viewingTask.images} alt="Proof" className="w-full h-auto object-cover hover:scale-105 transition-transform duration-500" />;
+                                            }
+                                        })()}
+                                    </div>
+                                ) : (
+                                    <div className="p-12 text-center bg-gray-50 border-2 border-dashed border-gray-200 rounded-3xl">
+                                        <Image className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                                        <p className="text-gray-400 font-bold">No photo proof available</p>
+                                    </div>
+                                )}
+                            </div>
+
+                            <button
+                                onClick={() => setViewingTask(null)}
+                                className="w-full py-4 bg-emerald-600 text-white font-black uppercase tracking-[0.3em] rounded-2xl hover:bg-emerald-700 transition-all shadow-lg active:scale-95"
+                            >
+                                Close Report
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Assignment Modal */}
             {

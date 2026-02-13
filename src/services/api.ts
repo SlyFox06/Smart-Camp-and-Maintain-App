@@ -13,7 +13,14 @@ const api = axios.create({
 // Add auth header if token exists
 api.interceptors.request.use((config) => {
     const token = localStorage.getItem('token');
-    if (token) {
+
+    // Don't send token for login/register/forgot-password/reset-password
+    const isAuthRequest = config.url?.includes('/auth/login') ||
+        config.url?.includes('/auth/register') ||
+        config.url?.includes('/auth/forgot-password') ||
+        config.url?.includes('/auth/reset-password');
+
+    if (token && !isAuthRequest) {
         config.headers.Authorization = `Bearer ${token}`;
     }
     return config;

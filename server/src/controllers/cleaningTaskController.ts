@@ -170,7 +170,7 @@ export const autoAssignTask = async (taskId: string) => {
 // Manual assignment by admin
 export const manualAssignTask = async (req: Request, res: Response) => {
     try {
-        const { taskId } = req.params;
+        const taskId = req.params.taskId as string;
         const { cleanerId } = req.body;
         const userId = (req as any).user?.id;
 
@@ -192,11 +192,12 @@ export const manualAssignTask = async (req: Request, res: Response) => {
         });
 
         if (userId) {
+            const taskAny = task as any;
             await prisma.auditLog.create({
                 data: {
                     userId,
                     action: 'CLEANING_TASK_MANUALLY_ASSIGNED',
-                    details: `Assigned ${task.classroom.name} cleaning to ${task.cleaner?.user.name}`
+                    details: `Assigned ${taskAny.classroom?.name} cleaning to ${taskAny.cleaner?.user?.name}`
                 }
             });
         }
@@ -211,8 +212,8 @@ export const manualAssignTask = async (req: Request, res: Response) => {
 // Update task status
 export const updateTaskStatus = async (req: Request, res: Response) => {
     try {
-        const { taskId } = req.params;
-        const { status, notes } = req.body;
+        const taskId = req.params.taskId as string;
+        const { status, notes, images } = req.body;
         const userId = (req as any).user?.id;
 
         const updateData: any = { status };
@@ -223,6 +224,10 @@ export const updateTaskStatus = async (req: Request, res: Response) => {
 
         if (notes) {
             updateData.notes = notes;
+        }
+
+        if (images) {
+            updateData.images = Array.isArray(images) ? JSON.stringify(images) : images;
         }
 
         const task = await prisma.cleaningTask.update({
@@ -237,11 +242,12 @@ export const updateTaskStatus = async (req: Request, res: Response) => {
         });
 
         if (userId) {
+            const taskAny = task as any;
             await prisma.auditLog.create({
                 data: {
                     userId,
                     action: 'CLEANING_TASK_STATUS_UPDATED',
-                    details: `${task.classroom.name} cleaning marked as ${status}`
+                    details: `${taskAny.classroom?.name} cleaning marked as ${status}`
                 }
             });
         }

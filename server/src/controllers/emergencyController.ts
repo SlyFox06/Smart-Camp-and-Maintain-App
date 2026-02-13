@@ -22,108 +22,101 @@ const getRequiredSkillsForEmergency = (emergencyType: string): string[] => {
 
 export const createEmergency = async (req: Request, res: Response) => {
     try {
-        const { type, location, description } = req.body;
+        const { type, location, description, assetId, evidence, isOfflineSync, reportedAt } = req.body;
+        const reporterId = (req as any).user?.id;
 
-        const emergency = await prisma.emergency.create({
-            data: {
-                type,
-                location: JSON.stringify(location),
-                description,
-                status: 'triggered'
-            }
-        });
+        // Determine scope based on location
+        let emergencyScope = 'college';
+        const locationStr = typeof location === 'string' ? location : (location as any).text || '';
+        if (locationStr.toLowerCase().includes('hostel')) {
+            emergencyScope = 'hostel';
+        }
 
-        // Smart Auto-Assignment Logic
+        // Find available technician with matching skills AND scope
         const requiredSkills = getRequiredSkillsForEmergency(type);
-
-        // Find available technicians with matching skills
-        const availableTechnicians = await prisma.technician.findMany({
+        const availableTechnician = await prisma.technician.findFirst({
             where: {
                 skillType: { in: requiredSkills },
                 isAvailable: true,
                 user: {
-                    isActive: true
+                    isActive: true,
+                    accessScope: { in: [emergencyScope, 'both'] }
                 }
             },
-            include: {
-                user: true
-            },
-            orderBy: {
-                createdAt: 'asc' // Prioritize senior technicians
-            },
-            take: 3 // Assign up to 3 technicians for emergencies
+            include: { user: true },
+            orderBy: { createdAt: 'asc' } // Prioritize senior
         });
+
+        const emergencyData: any = {
+            type,
+            location: typeof location === 'string' ? location : JSON.stringify(location),
+            description,
+            status: 'triggered',
+            evidence: evidence ? (typeof evidence === 'string' ? evidence : JSON.stringify(evidence)) : null,
+            isOfflineSync: isOfflineSync || false,
+            reporterId: reporterId || null,
+            assetId: assetId || null,
+            assignedToId: availableTechnician?.userId || null,
+            reportedAt: isOfflineSync && reportedAt ? new Date(reportedAt) : new Date()
+        };
+
+        const emergency = await prisma.emergency.create({
+            data: emergencyData,
+            include: {
+                reporter: true,
+                asset: true,
+                // @ts-ignore
+                assignedTo: {
+                    include: { technician: true }
+                }
+            }
+        }) as any;
 
         // Always notify all admins
         const admins = await prisma.user.findMany({ where: { role: 'admin' } });
 
         let assignmentMessage = '';
+        if (availableTechnician) {
+            await createNotification(
+                availableTechnician.userId,
+                '🚨 EMERGENCY ASSIGNED',
+                `${type} Emergency at ${typeof location === 'string' ? location : (location as any).text || 'Unknown Location'}`,
+                'emergency_assigned',
+                emergency.id,
+                'emergency'
+            );
+            assignmentMessage = `Auto-assigned to: ${availableTechnician.user.name}`;
 
-        if (availableTechnicians.length > 0) {
-            // Notify assigned technicians
-            for (const tech of availableTechnicians) {
-                await createNotification(
-                    tech.userId,
-                    '🚨 EMERGENCY - IMMEDIATE RESPONSE REQUIRED',
-                    `${type} Emergency${location?.text ? ` - ${location.text}` : ''}. Report immediately!`,
-                    'emergency_assigned',
-                    emergency.id,
-                    'emergency'
-                );
-            }
-
-            const techNames = availableTechnicians.map(t => t.user.name).join(', ');
-            assignmentMessage = `Auto-assigned to: ${techNames}`;
-
-            // Create audit log for assignments
             await prisma.auditLog.create({
                 data: {
-                    userId: availableTechnicians[0].userId,
+                    userId: availableTechnician.userId, // Assigned user ID or System ID? System ID is not available. Using the tech ID as "performer" might be confusing. Let's use reporter ID or leave user NULL if possible? AuditLog usually requires user. I'll skip writing specific assignee audit log HERE and rely on the record's existence. Admin notification below covers audit trail context.
                     action: 'EMERGENCY_AUTO_ASSIGNED',
-                    details: `Emergency ${emergency.id} (${type}) auto-assigned to ${techNames}`
+                    details: `Emergency ${emergency.id} auto-assigned to ${availableTechnician.user.name}`
                 }
             });
         } else {
-            assignmentMessage = `⚠️ NO AVAILABLE STAFF - Manual intervention required`;
+            assignmentMessage = `⚠️ NO STAFF AVAILABLE - ESCALATED`;
+            // Escalate immediately if no staff
+            await prisma.emergency.update({
+                where: { id: emergency.id },
+                data: { escalationLevel: 1 } as any
+            });
         }
 
-        // Notify admins with assignment info
+        // Notify admins
         for (const admin of admins) {
             await createNotification(
                 admin.id,
-                '🚨 EMERGENCY ALERT 🚨',
-                `${type} Emergency${location?.text ? ` at ${location.text}` : ''}. ${assignmentMessage}`,
+                '🚨 NEW EMERGENCY REPORT',
+                `${type} Emergency. ${assignmentMessage}`,
                 'emergency_alert',
                 emergency.id,
                 'emergency'
             );
         }
 
-        // If no technicians available, also notify security/all staff as escalation
-        if (availableTechnicians.length === 0) {
-            const allTechnicians = await prisma.technician.findMany({
-                where: {
-                    user: { isActive: true }
-                },
-                include: { user: true },
-                take: 5 // Escalate to 5 staff members
-            });
-
-            for (const tech of allTechnicians) {
-                await createNotification(
-                    tech.userId,
-                    '🚨 EMERGENCY ESCALATION - ALL STAFF ALERT',
-                    `${type} Emergency${location?.text ? ` - ${location.text}` : ''}. No assigned staff available. Immediate assistance needed!`,
-                    'emergency_escalation',
-                    emergency.id,
-                    'emergency'
-                );
-            }
-        }
-
         res.status(201).json({
             ...emergency,
-            assignedTechnicians: availableTechnicians.length,
             message: assignmentMessage
         });
 
@@ -135,10 +128,26 @@ export const createEmergency = async (req: Request, res: Response) => {
 
 export const getActiveEmergencies = async (req: Request, res: Response) => {
     try {
+        const user = (req as any).user;
+        const whereClause: any = {
+            status: {
+                in: ['triggered', 'responding'] // Fetch only active
+            }
+        };
+
+        // If technician, only show assigned emergencies
+        if (user.role === 'technician') {
+            whereClause.assignedToId = user.id;
+        }
+
         const emergencies = await prisma.emergency.findMany({
-            where: {
-                status: {
-                    in: ['triggered', 'responding']
+            where: whereClause,
+            include: {
+                reporter: true,
+                asset: true,
+                // @ts-ignore
+                assignedTo: {
+                    include: { technician: true }
                 }
             },
             orderBy: {
@@ -154,31 +163,54 @@ export const getActiveEmergencies = async (req: Request, res: Response) => {
 export const updateEmergencyStatus = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        const { status } = req.body; // responding, resolved
+        const { status, assignedToId, escalationLevel } = req.body;
+        const adminId = (req as any).user?.id;
 
-        // Ensure id is a string
-        const emergencyId = Array.isArray(id) ? id[0] : id;
+        const emergencyId = String(id);
 
-        const data: any = { status };
-        if (status === 'responding') {
-            data.respondedAt = new Date();
-        } else if (status === 'resolved') {
-            data.resolvedAt = new Date();
+        const data: any = {};
+        if (status) {
+            data.status = status;
+            if (status === 'responding') data.respondedAt = new Date();
+            if (status === 'resolved') data.resolvedAt = new Date();
         }
+        if (assignedToId) data.assignedToId = assignedToId;
+        if (escalationLevel !== undefined) data.escalationLevel = escalationLevel;
 
         const emergency = await prisma.emergency.update({
             where: { id: emergencyId },
-            data
-        });
+            data,
+            include: {
+                // @ts-ignore
+                assignedTo: true
+            }
+        }) as any;
 
-        // Audit Log
-        const adminId = (req as any).user?.id;
-        if (adminId) {
+        // Notifications & Audit
+        if (assignedToId && emergency.assignedTo) {
+            await createNotification(
+                assignedToId,
+                '🚨 EMERGENCY RE-ASSIGNED',
+                `You have been assigned to Emergency ${emergencyId}`,
+                'emergency_assigned',
+                emergencyId,
+                'emergency'
+            );
+            await prisma.auditLog.create({
+                data: {
+                    userId: adminId,
+                    action: 'EMERGENCY_REASSIGNED',
+                    details: `Assigned to ${emergency.assignedTo.name}`
+                }
+            });
+        }
+
+        if (status) {
             await prisma.auditLog.create({
                 data: {
                     userId: adminId,
                     action: `EMERGENCY_${status.toUpperCase()}`,
-                    details: `Emergency ${emergencyId} status updated to ${status}`
+                    details: `Status updated to ${status}`
                 }
             });
         }
