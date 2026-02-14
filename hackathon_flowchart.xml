@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Smart Campus Maintenance & Complaint Management System Flowchart -->
+<ProjectFlowchart title="Smart Campus Maintenance Hackathon Workflow">
+    
+    <Actors>
+        <Actor id="STU" name="Student" role="Reporter" />
+        <Actor id="ADM" name="Admin" role="Manager/Approver" />
+        <Actor id="TEC" name="Technician" role="Resolver" />
+        <Actor id="SYS" name="System_AI" role="Automation/Backend" />
+    </Actors>
+
+    <Workflow id="Hackathon_Demo_Flow">
+        
+        <!-- Phase 1: Authentication -->
+        <Phase name="Authentication">
+            <Step id="1" actor="All" action="Login to Application" />
+            <Decision id="2" actor="SYS" question="Identify Role">
+                <Path value="Student" next="STU_Dashboard" />
+                <Path value="Admin" next="ADM_Dashboard" />
+                <Path value="Technician" next="TEC_Dashboard" />
+            </Decision>
+        </Phase>
+
+        <!-- Phase 2: Student Reporting Logic -->
+        <Phase name="Reporting_Issue">
+            <Step id="STU_Dashboard" actor="STU" action="View Dashboard & Active Complaints" />
+            <Decision id="3" actor="STU" question="Select Reporting Method">
+                <Path value="Scan QR" action="Scan Asset QR Code" next="4" />
+                <Path value="Search" action="Search Asset ID/Location" next="4" />
+                <Path value="Emergency" action="Click SOS Button" next="SOS_Trigger" />
+            </Decision>
+            
+            <Step id="4" actor="STU" action="View Asset Details" />
+            <Decision id="5" actor="SYS" question="Is Asset Already Faulty?">
+                <Path value="Yes" action="Show 'Already Reported' Alert" end="true" />
+                <Path value="No" action="Open Complaint Form" next="6" />
+            </Decision>
+
+            <Step id="6" actor="STU" action="Fill Description, Select Priority, & Upload Image" />
+            <Step id="7" actor="STU" action="Submit Complaint" />
+            <Step id="8" actor="SYS" action="Set Complaint Status: REPORTED" />
+            <Step id="9" actor="SYS" action="Internal Action: Update Asset Status to 'Faulty'" />
+        </Phase>
+
+        <!-- Phase 3: Admin Management & Assignment -->
+        <Phase name="Admin_Review">
+            <Step id="ADM_Dashboard" actor="ADM" action="View Analytics & Pending Requests" />
+            <Step id="10" actor="ADM" action="Open New Complaint Details" />
+            <Decision id="11" actor="ADM" question="Review Validity">
+                <Path value="Reject" action="Mark Rejected (Notify Student)" end="true" />
+                <Path value="Approve" action="Mark Approved" next="12" />
+            </Decision>
+
+            <Decision id="12" actor="ADM" question="Assignment Method">
+                <Path value="Manual" action="Select Technician from List" next="13" />
+                <Path value="Auto-Skill" action="System Auto-Assigns based on Skill/Location" next="13" />
+            </Decision>
+
+            <Step id="13" actor="SYS" action="Set Complaint Status: ASSIGNED" />
+            <Step id="14" actor="SYS" action="Send Notification to Technician" />
+        </Phase>
+
+        <!-- Phase 4: Technician Resolution -->
+        <Phase name="Resolution">
+            <Step id="TEC_Dashboard" actor="TEC" action="View Assigned Tasks" />
+            <Step id="15" actor="TEC" action="Accept Task & Navigate to Location" />
+            <Step id="16" actor="TEC" action="Set Status: IN_PROGRESS" />
+            <Step id="17" actor="TEC" action="Perform Repair / Cleaning Task" />
+            <Step id="18" actor="TEC" action="Upload Proof of Work (Image)" />
+            <Step id="19" actor="TEC" action="Set Status: RESOLVED" />
+        </Phase>
+
+        <!-- Phase 5: Verification & Closure -->
+        <Phase name="Closure">
+            <Step id="20" actor="SYS" action="Notify Student & Admin of Resolution" />
+            <Decision id="21" actor="ADM" question="Verification Required?">
+                <Path value="Yes" action="Verify with Student/OTP" next="22" />
+                <Path value="No" action="Auto-Close" next="22" />
+            </Decision>
+            <Step id="22" actor="SYS" action="Set Complaint Status: CLOSED" />
+            <Step id="23" actor="SYS" action="Reset Asset Status to 'OPERATIONAL'" />
+        </Phase>
+
+        <!-- Special Logic: Emergency SOS -->
+        <Phase name="Emergency_Protocol">
+            <Step id="SOS_Trigger" actor="STU" action="Confirm Emergency" />
+            <Step id="E1" actor="SYS" action="Broadcast Alert to All Admins" />
+            <Step id="E2" actor="SYS" action="Auto-Assign Nearest Available Technician" />
+            <Step id="E3" actor="SYS" action="Track Live Location (if enabled)" />
+        </Phase>
+    </Workflow>
+
+</ProjectFlowchart>
