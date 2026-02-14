@@ -399,3 +399,36 @@ Role-based access:
 - **Student**: Can access assets, own complaints
 - **Technician**: Can access assets, assigned complaints, faulty assets
 - **Admin**: Full access to all endpoints
+
+---
+
+## 🧹 Cleaner Management
+
+### Generate Daily Cleaning Tasks
+```
+POST /cleaners/tasks/generate
+```
+**Auth:** Admin/Warden only  
+**Purpose:** Auto-distribute hostel rooms among available cleaners based on assigned blocks.  
+**Response:**
+```json
+{
+  "message": "Successfully generated 45 cleaning tasks...",
+  "tasksCreated": 45,
+  "cleanersActive": 5,
+  "details": "Distributed among 5 cleaners across 2 blocks."
+}
+```
+
+### Update Cleaner Availability (Triggers Redistribution)
+```
+PATCH /cleaners/:cleanerId/availability
+```
+**Auth:** Cleaner/Admin/Warden  
+**Body:**
+```json
+{
+  "isAvailable": false
+}
+```
+**Note:** Setting availability to `false` triggers automatic redistribution of pending tasks.

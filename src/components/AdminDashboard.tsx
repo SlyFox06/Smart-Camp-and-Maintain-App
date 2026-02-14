@@ -89,7 +89,7 @@ const AdminDashboard = () => {
     useEffect(() => {
         const fetchAnalytics = async () => {
             try {
-                const response = await api.get('/admin/analytics');
+                const response = await api.get('/admin/analytics', { params: { scope: 'college' } });
                 setAnalytics(response.data);
             } catch (error) {
                 console.error('Failed to fetch analytics', error);
@@ -304,9 +304,9 @@ const AdminDashboard = () => {
                         {/* Other Tabs Rendering */}
                         <div className="mt-6">
                             {activeTab === 'complaints' && <ComplaintsTab onSelectComplaint={setSelectedComplaint} />}
-                            {activeTab === 'students' && <UserManagement role="student" />}
-                            {activeTab === 'technicians' && <UserManagement role="technician" />}
-                            {activeTab === 'cleaners' && <UserManagement role="cleaner" />}
+                            {activeTab === 'students' && <UserManagement role="student" scope="college" />}
+                            {activeTab === 'technicians' && <UserManagement role="technician" scope="college" />}
+                            {activeTab === 'cleaners' && <UserManagement role="cleaner" scope="college" />}
                             {activeTab === 'assets' && <AssetManagement />}
                             {activeTab === 'classrooms' && <ClassroomManagement />}
                             {activeTab === 'cleaning' && <CleaningManagement />}
@@ -381,7 +381,7 @@ function ComplaintsTab({ onSelectComplaint }: { onSelectComplaint: (complaint: C
     const fetchComplaints = async () => {
         setIsLoading(true);
         try {
-            const params: any = {};
+            const params: any = { scope: 'college' };
             if (searchTerm) params.q = searchTerm;
             if (statusFilter !== 'all') params.status = statusFilter;
 
@@ -579,8 +579,8 @@ function EmergencyConsole({ emergencies, onClose, onUpdateStatus, onAssign }: {
                                                 </span>
                                                 <EmergencyTimer startTime={em.reportedAt} />
                                                 <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border ${em.status === 'triggered' ? 'bg-red-50 text-red-600 border-red-200 animate-pulse' :
-                                                        em.status === 'responding' ? 'bg-orange-50 text-orange-600 border-orange-200' :
-                                                            'bg-green-50 text-green-600 border-green-200'
+                                                    em.status === 'responding' ? 'bg-orange-50 text-orange-600 border-orange-200' :
+                                                        'bg-green-50 text-green-600 border-green-200'
                                                     }`}>
                                                     {em.status}
                                                 </span>

@@ -190,9 +190,12 @@ const UserManagement = ({ role, scope }: UserManagementProps) => {
                                                     user.department}
                                         </p>
                                         {user.accessScope && (
-                                            <p className="text-xs text-blue-600 mt-1 capitalize">
-                                                Scope: {user.accessScope}
-                                            </p>
+                                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium mt-1 uppercase tracking-wide ${user.accessScope === 'both' ? 'bg-purple-100 text-purple-700' :
+                                                user.accessScope === 'hostel' ? 'bg-orange-100 text-orange-700' :
+                                                    'bg-blue-100 text-blue-700'
+                                                }`}>
+                                                {user.accessScope}
+                                            </span>
                                         )}
                                     </td>
                                     <td className="px-6 py-4">
@@ -328,14 +331,13 @@ const UserManagement = ({ role, scope }: UserManagementProps) => {
                                         </select>
                                     </div>
                                 )}
-                                {(role !== 'warden') && (
+                                {(role !== 'warden') && !scope && (
                                     <div className={`${role === 'student' ? '' : 'col-span-2'}`}>
                                         <label className="block text-sm font-medium mb-1 text-gray-700">Access Scope</label>
                                         <select
                                             value={newUser.accessScope}
                                             onChange={e => setNewUser({ ...newUser, accessScope: e.target.value as any })}
                                             className="input-field-light"
-                                            disabled={!!scope} // Disable if specific scope is passed (e.g. from Warden Dashboard)
                                         >
                                             <option value="college">College Only</option>
                                             <option value="hostel">Hostel Only</option>
@@ -344,15 +346,24 @@ const UserManagement = ({ role, scope }: UserManagementProps) => {
                                     </div>
                                 )}
                                 {role === 'cleaner' && (
-                                    <div>
-                                        <label className="block text-sm font-medium mb-1 text-gray-700">Assigned Area</label>
+                                    <div className="col-span-2">
+                                        <label className="block text-sm font-medium mb-1 text-gray-700">
+                                            {newUser.accessScope === 'hostel' ? 'Assigned Hostel Block' :
+                                                newUser.accessScope === 'college' ? 'Assigned College Building' :
+                                                    'Assigned Area (Block/Building)'}
+                                        </label>
                                         <input
                                             type="text"
                                             value={newUser.assignedArea}
                                             onChange={e => setNewUser({ ...newUser, assignedArea: e.target.value })}
                                             className="input-field-light"
-                                            placeholder="e.g. Building A"
+                                            placeholder={newUser.accessScope === 'hostel' ? "e.g. Block A" : "e.g. Science Building"}
                                         />
+                                        <p className="text-xs text-gray-500 mt-1">
+                                            {newUser.accessScope === 'hostel' ?
+                                                'Enter the specific hostel block this cleaner is responsible for.' :
+                                                'Enter the specific building or department area.'}
+                                        </p>
                                     </div>
                                 )}
                             </div>
@@ -448,7 +459,7 @@ const UserManagement = ({ role, scope }: UserManagementProps) => {
                                     </div>
                                 </div>
 
-                                {role === 'student' && (
+                                {role !== 'warden' && (
                                     <div className="mt-4">
                                         <label className="block text-sm font-medium mb-1 text-gray-700">Access Scope</label>
                                         <select
@@ -464,7 +475,7 @@ const UserManagement = ({ role, scope }: UserManagementProps) => {
                                 )}
 
                                 {role === 'technician' && editingUser.technician && (
-                                    <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-2 gap-4 mt-4">
                                         <div>
                                             <label className="block text-sm font-medium mb-1 text-gray-700">Skill Type</label>
                                             <select
@@ -497,7 +508,7 @@ const UserManagement = ({ role, scope }: UserManagementProps) => {
                                 )}
 
                                 {role === 'cleaner' && editingUser.cleaner && (
-                                    <div>
+                                    <div className="mt-4">
                                         <label className="block text-sm font-medium mb-1 text-gray-700">Assigned Area</label>
                                         <input
                                             type="text"

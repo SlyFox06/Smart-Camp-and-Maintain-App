@@ -23,6 +23,8 @@ const ComplaintDetails = ({ complaint, onClose }: ComplaintDetailsProps) => {
     const [newSeverity, setNewSeverity] = useState(complaint.severity);
     const { user } = useAuth();
     const isAdmin = user?.role === 'admin';
+    const isWarden = user?.role === 'warden';
+    const isAdminOrWarden = isAdmin || isWarden; // Combined check
     const isStudent = user?.role === 'student';
     const isTechnician = user?.role === 'technician'; // Add technician check
 
@@ -150,11 +152,26 @@ const ComplaintDetails = ({ complaint, onClose }: ComplaintDetailsProps) => {
         } catch (e) { console.error(e); alert('Review failed'); }
     };
 
+    const handleVerifyAndClose = async () => {
+        if (!confirm('Are you sure you want to verify and close this complaint? This will bypass student feedback.')) return;
+        try {
+            await api.patch(`/complaints/${complaint.id}/status`, {
+                status: 'closed',
+                message: `${user?.role === 'warden' ? 'Warden' : 'Admin'} verified and closed the complaint.`
+            });
+            alert('Complaint verified and closed successfully.');
+            onClose();
+        } catch (error: any) {
+            console.error('Failed to close complaint', error);
+            alert('Failed to close complaint');
+        }
+    };
+
     const submitFeedback = async () => {
         if (rating === 0) return alert('Please select a rating');
         try {
             await api.post(`/complaints/${complaint.id}/feedback`, { rating, feedback: feedbackText });
-            alert('bFeedback submitted & Complaint Closed');
+            alert('Feedback submitted & Complaint Closed');
             onClose();
         } catch (e) { console.error(e); alert('Failed to submit feedback'); }
     };
@@ -236,7 +253,7 @@ const ComplaintDetails = ({ complaint, onClose }: ComplaintDetailsProps) => {
                                             'bg-red-600 text-white'
                                     }`}>
                                     {complaint.severity.toUpperCase()} PRIORITY
-                                    {isAdmin && (
+                                    {isAdminOrWarden && (
                                         <button
                                             onClick={() => setIsEditingPriority(true)}
                                             className="hover:bg-white/20 rounded-full p-1 transition-colors"
@@ -256,7 +273,7 @@ const ComplaintDetails = ({ complaint, onClose }: ComplaintDetailsProps) => {
                     </div>
 
                     {/* Admin Approval Section - ONLY for REPORTED status */}
-                    {isAdmin && complaint.status === 'reported' && (
+                    {isAdminOrWarden && complaint.status === 'reported' && (
                         <div className="bg-orange-50 border border-orange-200 rounded-xl p-6 mb-6">
                             <h3 className="font-bold text-gray-900 mb-2 flex items-center gap-2">
                                 <AlertCircle className="w-5 h-5 text-orange-600" />
@@ -305,6 +322,33 @@ const ComplaintDetails = ({ complaint, onClose }: ComplaintDetailsProps) => {
                                         Cancel
                                     </button>
                                 )}
+                            </div>
+                        </div>
+                    )}
+
+                    {isAdminOrWarden && complaint.status === 'waiting_warden_approval' && (
+                        <div className="bg-orange-50 border border-orange-200 rounded-xl p-6 mb-6">
+                            <h3 className="font-bold text-gray-900 mb-2 flex items-center gap-2">
+                                <AlertCircle className="w-5 h-5 text-orange-600" />
+                                Warden Approval Needed
+                            </h3>
+                            <div className="flex gap-4">
+                                <button
+                                    onClick={() => handleApproval('accept')}
+                                    disabled={isProcessing}
+                                    className="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors"
+                                >
+                                    <CheckCircle className="w-5 h-5" />
+                                    Approve & Assign
+                                </button>
+                                <button
+                                    onClick={() => handleApproval('reject')}
+                                    disabled={isProcessing}
+                                    className="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors"
+                                >
+                                    <X className="w-5 h-5" />
+                                    Reject
+                                </button>
                             </div>
                         </div>
                     )}
@@ -544,9 +588,11 @@ const ComplaintDetails = ({ complaint, onClose }: ComplaintDetailsProps) => {
                     )}
 
                     {/* NEW: Admin Work Review */}
-                    {isAdmin && complaint.status === 'work_submitted' && (
+                    {isAdminOrWarden && ['work_submitted', 'work_approved'].includes(complaint.status) && (
                         <div className="bg-purple-50 border border-purple-200 rounded-xl p-6">
-                            <h3 className="font-bold text-gray-900 mb-4">Review Work</h3>
+                            <h3 className="font-bold text-gray-900 mb-4">
+                                {complaint.status === 'work_submitted' ? 'Review Work' : 'Pending Student Confirmation'}
+                            </h3>
                             <div className="mb-4">
                                 <p className="font-semibold">Technician Note:</p>
                                 <p className="text-gray-700 italic">{complaint.workNote || 'No notes'}</p>
@@ -564,10 +610,36 @@ const ComplaintDetails = ({ complaint, onClose }: ComplaintDetailsProps) => {
                                     value={adminComment}
                                     onChange={e => setAdminComment(e.target.value)}
                                 />
-                                <div className="flex gap-4">
-                                    <button onClick={() => reviewWork('approve')} className="flex-1 bg-green-600 text-white py-2 rounded">Approve</button>
-                                    <button onClick={() => reviewWork('reject')} className="flex-1 bg-red-600 text-white py-2 rounded">Reject</button>
+                                <div className="flex gap-3 flex-wrap">
+                                    {complaint.status === 'work_submitted' && (
+                                        <>
+                                            <button
+                                                onClick={() => reviewWork('approve')}
+                                                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition-colors"
+                                            >
+                                                Approve (Wait for Student)
+                                            </button>
+                                            <button
+                                                onClick={() => reviewWork('reject')}
+                                                className="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded transition-colors"
+                                            >
+                                                Reject
+                                            </button>
+                                        </>
+                                    )}
+
+                                    <button
+                                        onClick={handleVerifyAndClose}
+                                        className={`flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded transition-colors ${complaint.status === 'work_approved' ? 'w-full' : ''}`}
+                                    >
+                                        {complaint.status === 'work_submitted' ? 'Verify & Close Now' : 'Force Close Complaint'}
+                                    </button>
                                 </div>
+                                {complaint.status === 'work_approved' && (
+                                    <p className="text-sm text-gray-500 text-center italic mt-2">
+                                        This complaint is approved and waiting for student feedback. You can force close it here if the student is unresponsive.
+                                    </p>
+                                )}
                             </div>
                         </div>
                     )}

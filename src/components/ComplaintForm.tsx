@@ -147,8 +147,8 @@ const ComplaintForm = ({ onClose, prefilledAssetId, prefilledRoomId, prefilledCl
         e.preventDefault();
         setError('');
 
-        // Validation: Must have at least one of assetId, roomId, or classroomId
-        if (!assetId && !roomId && !classroomId) {
+        // Validation: Must have at least one of assetId, roomId, or classroomId (unless reporting a general hostel issue)
+        if (!assetId && !roomId && !classroomId && effectiveScope !== 'hostel') {
             setError('Please select an asset, room, or classroom');
             return;
         }
@@ -246,8 +246,8 @@ const ComplaintForm = ({ onClose, prefilledAssetId, prefilledRoomId, prefilledCl
                         </div>
                     )}
 
-                    {/* Asset Selection - Only show if not a classroom or room complaint */}
-                    {!classroomId && !roomId && (
+                    {/* Asset Selection - Only show if not a classroom, room, or general hostel complaint */}
+                    {!classroomId && !roomId && effectiveScope !== 'hostel' && (
                         <div>
                             <label className="block text-sm font-semibold text-gray-700 mb-2">
                                 Select Asset <span className="text-red-500">*</span>
@@ -302,7 +302,7 @@ const ComplaintForm = ({ onClose, prefilledAssetId, prefilledRoomId, prefilledCl
                                 Problem Category <span className="text-red-500">*</span>
                             </label>
                             <div className="grid grid-cols-3 gap-3">
-                                {['Electrical', 'Furniture', 'Plumbing', 'Wifi', 'Other'].map((cat) => (
+                                {['Electrical', 'Furniture', 'Plumbing', 'Wifi', 'Cleaning', 'Other'].map((cat) => (
                                     <button
                                         key={cat}
                                         type="button"
@@ -381,7 +381,7 @@ const ComplaintForm = ({ onClose, prefilledAssetId, prefilledRoomId, prefilledCl
                         <textarea
                             value={description}
                             onChange={(e) => setDescription(e.target.value)}
-                            placeholder="Describe the issue in detail..."
+                            placeholder={effectiveScope === 'hostel' ? "Describe the issue and specify the location (e.g. Room number, Corridor)..." : "Describe the issue in detail..."}
                             rows={4}
                             className="input-field-light resize-none"
                             required

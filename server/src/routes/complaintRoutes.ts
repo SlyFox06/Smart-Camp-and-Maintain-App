@@ -27,13 +27,13 @@ router.get('/assigned', authenticate, authorize(['technician']), getAssignedComp
 router.post('/:id/work-submit', authenticate, authorize(['technician']), submitWork); // NEW
 
 // Admin routes
-router.post('/:id/assign', authenticate, authorize(['admin']), assignComplaint);
-router.post('/:id/approval', authenticate, authorize(['admin']), handleApproval);
-router.post('/:id/work-review', authenticate, authorize(['admin']), reviewWork); // NEW
+router.post('/:id/assign', authenticate, authorize(['admin', 'warden']), assignComplaint);
+router.post('/:id/approval', authenticate, authorize(['admin', 'warden']), handleApproval);
+router.post('/:id/work-review', authenticate, authorize(['admin', 'warden']), reviewWork); // NEW
 
 // Shared routes
 // Ensure technician can access assigned complaints details
 router.get('/:id', authenticate, getComplaintById);
-router.patch('/:id/status', authenticate, authorize(['technician', 'admin']), updateComplaintStatus);
+router.patch('/:id/status', authenticate, authorize(['technician', 'admin', 'warden']), updateComplaintStatus);
 
 export default router;

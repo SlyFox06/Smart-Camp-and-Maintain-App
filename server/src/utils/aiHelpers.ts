@@ -28,28 +28,35 @@ export const detectSkill = (description: string, category?: string): string => {
     const text = description.toLowerCase();
     const cat = category?.toLowerCase() || '';
 
+    // Priority Check by Category
+    if (cat === 'electrical') return 'Electrician';
+    if (cat === 'plumbing') return 'Plumber';
+    if (cat === 'it/network' || cat === 'wifi') return 'IT Technician';
+    if (cat === 'furniture') return 'Maintenance Technician';
+    if (cat === 'cleanliness' || cat === 'cleaning') return 'Cleaner';
+
     // Electrical
-    if (text.includes('light') || text.includes('fan') || text.includes('socket') || text.includes('wire') || text.includes('shock') || text.includes('power') || cat === 'electrical') {
+    if (text.includes('light') || text.includes('fan') || text.includes('socket') || text.includes('wire') || text.includes('shock') || text.includes('power') || text.includes('ac') || text.includes('air conditioner') || text.includes('cooler') || text.includes('cooling')) {
         return 'Electrician';
     }
 
     // Plumbing
-    if (text.includes('water') || text.includes('leak') || text.includes('tap') || text.includes('flush') || text.includes('drain') || text.includes('toilet') || text.includes('pipe') || cat === 'plumbing') {
+    if (text.includes('water') || text.includes('leak') || text.includes('tap') || text.includes('flush') || text.includes('drain') || text.includes('toilet') || text.includes('pipe')) {
         return 'Plumber';
     }
 
     // IT / Network
-    if (text.includes('router') || text.includes('wifi') || text.includes('internet') || text.includes('computer') || text.includes('lan') || text.includes('network') || cat === 'it/network' || cat === 'wifi') {
+    if (text.includes('router') || text.includes('wifi') || text.includes('internet') || text.includes('computer') || text.includes('lan') || text.includes('network')) {
         return 'IT Technician';
     }
 
     // Furniture / Carpentry
-    if (text.includes('chair') || text.includes('table') || text.includes('door') || text.includes('window') || text.includes('bed') || text.includes('cupboard') || cat === 'furniture') {
+    if (text.includes('chair') || text.includes('table') || text.includes('door') || text.includes('window') || text.includes('bed') || text.includes('cupboard')) {
         return 'Maintenance Technician';
     }
 
     // Cleaning
-    if (text.includes('trash') || text.includes('dirty') || text.includes('garbage') || text.includes('smell') || text.includes('clean') || cat === 'cleanliness' || cat === 'cleaning') {
+    if (text.includes('trash') || text.includes('dirty') || text.includes('garbage') || text.includes('smell') || text.includes('clean')) {
         return 'Cleaner';
     }
 

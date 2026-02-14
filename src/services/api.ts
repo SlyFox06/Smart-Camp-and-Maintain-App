@@ -2,9 +2,16 @@ import axios from 'axios';
 
 const getBaseUrl = () => {
     // Dynamically use the hostname (localhost or network IP)
-    const { hostname } = window.location;
-    return `http://${hostname}:5000/api`;
+    const { hostname, protocol } = window.location;
+    // Prefer env variable if set
+    if (import.meta.env.VITE_BACKEND_URL) {
+        return `${import.meta.env.VITE_BACKEND_URL}/api`;
+    }
+    // Default to port 5000 on the same host
+    return `${protocol}//${hostname}:5000/api`;
 };
+
+console.log('API Base URL:', getBaseUrl());
 
 const api = axios.create({
     baseURL: getBaseUrl(),

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { TrendingUp, Clock, CheckCircle, AlertTriangle, Wrench, BarChart3, Search, Users, BedDouble, Home } from 'lucide-react';
+import { TrendingUp, Clock, CheckCircle, AlertTriangle, Wrench, BarChart3, Search, Users, BedDouble, Home, Sparkles } from 'lucide-react';
 import api from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import { formatResolutionTime } from '../utils/helpers';
@@ -12,7 +12,7 @@ import type { Complaint, AnalyticsData } from '../types';
 const WardenDashboard = () => {
     const { user: currentUser, logout } = useAuth();
     const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(null);
-    const [activeTab, setActiveTab] = useState<'overview' | 'complaints' | 'rooms' | 'students' | 'technicians'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'complaints' | 'rooms' | 'students' | 'technicians' | 'insights' | 'cleaners'>('overview');
     const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
@@ -95,10 +95,12 @@ const WardenDashboard = () => {
                     <div className="flex gap-1 border-b border-gray-200 overflow-x-auto pb-1">
                         {[
                             { id: 'overview', label: 'Overview', icon: BarChart3 },
+                            { id: 'insights', label: 'AI Insights', icon: TrendingUp },
                             { id: 'complaints', label: 'Complaints', icon: AlertTriangle },
                             { id: 'rooms', label: 'Rooms', icon: Home },
                             { id: 'students', label: 'Students', icon: Users },
                             { id: 'technicians', label: 'Technicians', icon: Wrench },
+                            { id: 'cleaners', label: 'Cleaners', icon: Users },
                         ].map((tab) => (
                             <button
                                 key={tab.id}
@@ -158,6 +160,7 @@ const WardenDashboard = () => {
                 )}
 
                 <div className="mt-6">
+                    {activeTab === 'insights' && <InsightsTab />}
                     {activeTab === 'complaints' && <ComplaintsTab onSelectComplaint={setSelectedComplaint} />}
                     {activeTab === 'rooms' && (
                         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
@@ -166,6 +169,32 @@ const WardenDashboard = () => {
                     )}
                     {activeTab === 'students' && <UserManagement role="student" scope="hostel" />}
                     {activeTab === 'technicians' && <UserManagement role="technician" scope="hostel" />}
+                    {activeTab === 'cleaners' && (
+                        <div className="space-y-6">
+                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-orange-100 flex justify-between items-center">
+                                <div>
+                                    <h3 className="text-xl font-bold text-gray-800">Daily Cleaning Operations</h3>
+                                    <p className="text-gray-500 text-sm">Automated task distribution system</p>
+                                </div>
+                                <button
+                                    onClick={async () => {
+                                        if (!confirm("Generate daily cleaning tasks? This will distribute operational rooms among available cleaners.")) return;
+                                        try {
+                                            const response = await api.post('/cleaners/tasks/generate');
+                                            alert(response.data.message);
+                                        } catch (error: any) {
+                                            alert(error.response?.data?.message || 'Failed to generate tasks');
+                                        }
+                                    }}
+                                    className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all font-bold shadow-lg shadow-indigo-200"
+                                >
+                                    <Sparkles className="w-5 h-5" />
+                                    Generate Daily Tasks
+                                </button>
+                            </div>
+                            <UserManagement role="cleaner" scope="hostel" />
+                        </div>
+                    )}
                 </div>
 
             </div>
@@ -211,16 +240,90 @@ function OverviewTab({ analytics }: { analytics: AnalyticsData }) {
     );
 }
 
+// Insights Tab
+function InsightsTab() {
+    const [insights, setInsights] = useState<{ insights: string[], rawStats: any } | null>(null);
+    const [staffStats, setStaffStats] = useState<{ recommendations: string[], blockLoad: any } | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchData = async () => {
+            try {
+                const [insightsRes, staffRes] = await Promise.all([
+                    api.get('/hostel/insights'),
+                    api.get('/hostel/staff-distribution')
+                ]);
+                setInsights(insightsRes.data);
+                setStaffStats(staffRes.data);
+            } catch (error) {
+                console.error('Failed to fetch insights', error);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        fetchData();
+    }, []);
+
+    if (isLoading) return <div className="text-center py-12">Loading AI Insights...</div>;
+
+    return (
+        <div className="space-y-6">
+            {/* Predictive Alerts */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                <div className="flex items-center gap-2 mb-4">
+                    <TrendingUp className="w-6 h-6 text-purple-600" />
+                    <h3 className="text-xl font-bold text-gray-800">Predictive Maintenance Alerts</h3>
+                </div>
+                <div className="space-y-3">
+                    {insights?.insights.map((alert, i) => (
+                        <div key={i} className="p-4 bg-purple-50 border-l-4 border-purple-500 rounded-r-lg flex items-start gap-3">
+                            <AlertTriangle className="w-5 h-5 text-purple-600 mt-0.5" />
+                            <p className="text-purple-900 font-medium">{alert}</p>
+                        </div>
+                    ))}
+                    {insights?.insights.length === 0 && <p className="text-gray-500 italic">No critical patterns detected.</p>}
+                </div>
+            </div>
+
+            {/* Staff Recommendations */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                <div className="flex items-center gap-2 mb-4">
+                    <Users className="w-6 h-6 text-blue-600" />
+                    <h3 className="text-xl font-bold text-gray-800">Staff Distribution Intelligence</h3>
+                </div>
+                <div className="space-y-3">
+                    {staffStats?.recommendations.map((rec, i) => (
+                        <div key={i} className="p-4 bg-blue-50 border-l-4 border-blue-500 rounded-r-lg flex items-start gap-3">
+                            <Users className="w-5 h-5 text-blue-600 mt-0.5" />
+                            <p className="text-blue-900 font-medium">{rec}</p>
+                        </div>
+                    ))}
+                    {staffStats?.recommendations.length === 0 && <p className="text-gray-500 italic">Staff distribution is currently optimal.</p>}
+                </div>
+
+                {/* Visual Distribution */}
+                <div className="mt-6 grid md:grid-cols-2 gap-6">
+                    <div className="p-4 bg-gray-50 rounded-xl">
+                        <h4 className="font-semibold text-gray-700 mb-3">Load by Block</h4>
+                        {Object.entries(staffStats?.blockLoad || {}).map(([block, count]) => (
+                            <div key={block} className="flex items-center justify-between mb-2">
+                                <span>{block}</span>
+                                <span className="font-bold text-gray-800">{count as number} Issues</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 // Complaints Tab (Scoped to Hostel)
 function ComplaintsTab({ onSelectComplaint }: { onSelectComplaint: (complaint: Complaint) => void }) {
     const [complaints, setComplaints] = useState<Complaint[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
-
-    useEffect(() => {
-        fetchComplaints();
-    }, [searchTerm, statusFilter]);
 
     const fetchComplaints = async () => {
         setIsLoading(true);
@@ -229,15 +332,41 @@ function ComplaintsTab({ onSelectComplaint }: { onSelectComplaint: (complaint: C
             if (searchTerm) params.q = searchTerm;
             if (statusFilter !== 'all') params.status = statusFilter;
 
+            // Use the general search endpoint which supports filtering
+            // Note: Ensure backend supports filtering by status 'waiting_warden_approval'
             const response = await api.get('/admin/complaints/search', { params });
-            const sorted = response.data.sort((a: Complaint, b: Complaint) =>
-                new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-            );
+
+            // Client-side sort if needed, but backend usually handles it
+            const sorted = response.data.sort((a: Complaint, b: Complaint) => {
+                // Prioritize waiting_warden_approval
+                if (a.status === 'waiting_warden_approval' && b.status !== 'waiting_warden_approval') return -1;
+                if (a.status !== 'waiting_warden_approval' && b.status === 'waiting_warden_approval') return 1;
+                return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+            });
+
             setComplaints(sorted);
         } catch (error) {
             console.error('Failed to fetch complaints', error);
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchComplaints();
+    }, [searchTerm, statusFilter]);
+
+    const handleApproval = async (id: string, action: 'accept' | 'reject', e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!confirm(`Are you sure you want to ${action} this complaint?`)) return;
+
+        try {
+            await api.post(`/complaints/${id}/approve`, { action, notes: `Warden ${action}ed` });
+            alert(`Complaint ${action}ed successfully`);
+            fetchComplaints(); // Refresh
+        } catch (error) {
+            console.error('Approval failed', error);
+            alert('Failed to update complaint');
         }
     };
 
@@ -262,6 +391,7 @@ function ComplaintsTab({ onSelectComplaint }: { onSelectComplaint: (complaint: C
                         className="h-10 w-40 bg-white border border-gray-300 rounded-lg text-gray-800 focus:outline-none focus:border-orange-500 transition-all px-3"
                     >
                         <option value="all">All Status</option>
+                        <option value="waiting_warden_approval">Pending Approval</option>
                         <option value="reported">Reported</option>
                         <option value="assigned">Assigned</option>
                         <option value="in_progress">In Progress</option>
@@ -283,7 +413,8 @@ function ComplaintsTab({ onSelectComplaint }: { onSelectComplaint: (complaint: C
                         <div
                             key={complaint.id}
                             onClick={() => onSelectComplaint(complaint)}
-                            className="bg-white border border-gray-100 rounded-xl p-5 hover:bg-orange-50/30 hover:border-orange-200 transition-all cursor-pointer shadow-sm"
+                            className={`bg-white border rounded-xl p-5 hover:shadow-md transition-all cursor-pointer shadow-sm relative ${complaint.status === 'waiting_warden_approval' ? 'border-orange-300 bg-orange-50/20' : 'border-gray-100'
+                                }`}
                         >
                             <div className="flex items-start justify-between">
                                 <div className="flex-1">
@@ -297,6 +428,11 @@ function ComplaintsTab({ onSelectComplaint }: { onSelectComplaint: (complaint: C
                                                 {(complaint as any).category}
                                             </span>
                                         )}
+                                        {complaint.status === 'waiting_warden_approval' && (
+                                            <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded animate-pulse font-bold">
+                                                APPROVAL NEEDED
+                                            </span>
+                                        )}
                                     </div>
                                     <p className="text-sm text-gray-600 mb-3 line-clamp-1">{complaint.description}</p>
                                     <div className="flex flex-wrap items-center gap-4 text-xs text-gray-500">
@@ -307,7 +443,7 @@ function ComplaintsTab({ onSelectComplaint }: { onSelectComplaint: (complaint: C
                                         <span className="text-gray-300">•</span>
                                         <span className="flex items-center gap-1.5">
                                             <BedDouble className="w-3.5 h-3.5 text-orange-500" />
-                                            {complaint.asset?.name} ({complaint.asset?.building} {complaint.asset?.room})
+                                            {complaint.asset?.name || 'General Area'}
                                         </span>
                                         <span className="text-gray-300">•</span>
                                         <span className="flex items-center gap-1.5">
@@ -317,12 +453,29 @@ function ComplaintsTab({ onSelectComplaint }: { onSelectComplaint: (complaint: C
                                     </div>
                                 </div>
                                 <div className="flex flex-col gap-3 items-end pl-4">
-                                    <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border ${complaint.status === 'reported' ? 'bg-blue-50 text-blue-600 border-blue-200' :
-                                        complaint.status === 'resolved' ? 'bg-green-50 text-green-600 border-green-200' :
-                                            'bg-gray-50 text-gray-600 border-gray-200'
-                                        }`}>
-                                        {complaint.status.replace('_', ' ')}
-                                    </span>
+                                    {complaint.status === 'waiting_warden_approval' ? (
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={(e) => handleApproval(complaint.id, 'accept', e)}
+                                                className="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700"
+                                            >
+                                                Approve
+                                            </button>
+                                            <button
+                                                onClick={(e) => handleApproval(complaint.id, 'reject', e)}
+                                                className="px-3 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700"
+                                            >
+                                                Reject
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border ${complaint.status === 'reported' ? 'bg-blue-50 text-blue-600 border-blue-200' :
+                                            complaint.status === 'resolved' ? 'bg-green-50 text-green-600 border-green-200' :
+                                                'bg-gray-50 text-gray-600 border-gray-200'
+                                            }`}>
+                                            {complaint.status.replace('_', ' ')}
+                                        </span>
+                                    )}
                                 </div>
                             </div>
                         </div>

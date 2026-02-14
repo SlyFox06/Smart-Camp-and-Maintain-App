@@ -21,6 +21,7 @@ export interface User {
         isAvailable: boolean;
     };
     accessScope?: 'college' | 'hostel' | 'both';
+    technicianComplaints?: Complaint[];
 }
 
 // Asset Types
@@ -40,7 +41,7 @@ export interface Asset {
 }
 
 // Complaint Types
-export type ComplaintStatus = 'reported' | 'assigned' | 'in_progress' | 'work_submitted' | 'work_approved' | 'rework_required' | 'feedback_pending' | 'resolved' | 'closed' | 'rejected';
+export type ComplaintStatus = 'reported' | 'assigned' | 'in_progress' | 'work_submitted' | 'work_approved' | 'rework_required' | 'feedback_pending' | 'resolved' | 'closed' | 'rejected' | 'waiting_warden_approval';
 export type ComplaintSeverity = 'low' | 'medium' | 'high' | 'critical';
 
 export interface Complaint {
@@ -67,6 +68,12 @@ export interface Complaint {
         longitude: number;
         address: string;
     };
+    scope?: string;
+    category?: string;
+    roomId?: string;
+    classroomId?: string;
+    room?: any;
+    classroom?: any;
     otp?: string;
     otpVerified: boolean;
     createdAt: Date;

@@ -113,6 +113,7 @@ model Room {
   createdAt   DateTime?   @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt   DateTime?   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   complaints  Complaint[]
+  cleaningTasks CleaningTask[]
 
   @@unique([block, floor, roomNumber], map: "unique_room")
   @@index([status], map: "idx_rooms_status")
@@ -218,7 +219,8 @@ model Cleaner {
 
 model CleaningTask {
   id              String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  classroomId     String    @map("classroom_id") @db.Uuid
+  classroomId     String?   @map("classroom_id") @db.Uuid
+  roomId          String?   @map("room_id") @db.Uuid
   cleanerId       String?   @map("cleaner_id") @db.Uuid
   scheduledDate   DateTime  @map("scheduled_date") @db.Date
   status          String    @default("pending_assignment") @db.VarChar(50) // pending_assignment, waiting_for_availability, assigned, in_progress, completed, skipped
@@ -228,7 +230,8 @@ model CleaningTask {
   images          String?   @db.Text
   createdAt       DateTime? @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime? @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  classroom       Classroom @relation(fields: [classroomId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  classroom       Classroom? @relation(fields: [classroomId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  room            Room?     @relation(fields: [roomId], references: [id], onDelete: Cascade, onUpdate: NoAction)
   cleaner         Cleaner?  @relation(fields: [cleanerId], references: [id], onUpdate: NoAction)
 
   @@unique([classroomId, scheduledDate], map: "unique_classroom_date")

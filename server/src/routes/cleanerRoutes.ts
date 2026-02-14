@@ -4,16 +4,18 @@ import {
     getAllCleaners,
     updateAvailability,
     createCleaner,
-    getCleanerByUserId
+    getCleanerByUserId,
+    generateHostelTasks
 } from '../controllers/cleanerController';
 
 const router = express.Router();
 
 // Admin routes
-const adminAuth = [authenticate, authorize(['admin'])];
+const adminAuth = [authenticate, authorize(['admin', 'warden'])]; // Updated to include warden
 
 router.get('/', ...adminAuth, getAllCleaners);
 router.post('/', ...adminAuth, createCleaner);
+router.post('/tasks/generate', ...adminAuth, generateHostelTasks);
 
 // Cleaner routes
 const cleanerAuth = [authenticate, authorize(['cleaner', 'admin'])];

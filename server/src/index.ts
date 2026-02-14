@@ -100,6 +100,13 @@ try {
     console.error('❌ Failed to load Emergency routes:', error);
 }
 
+try {
+    app.use('/api/hostel', require('./routes/hostelRoutes').default);
+    console.log('✅ Hostel routes loaded');
+} catch (error) {
+    console.error('❌ Failed to load Hostel routes:', error);
+}
+
 // Health Check
 // Health Check
 app.get('/health', (req, res) => {
@@ -110,8 +117,19 @@ app.get('/health', (req, res) => {
 const { checkEscalations } = require('./services/escalationService');
 setInterval(checkEscalations, 60000); // Check every minute
 
-app.listen(PORT, () => {
+// Initialize Scheduled Jobs (Cron)
+import { initScheduledJobs } from './services/schedulerService';
+initScheduledJobs();
+
+import ip from 'ip';
+
+// ... (existing imports)
+
+// ...
+
+app.listen(Number(PORT), '0.0.0.0', () => {
     console.log(`🚀 Server running on http://localhost:${PORT}`);
+    console.log(`📡 Network URL: http://${ip.address()}:${PORT}`);
     console.log(`✅ Using Prisma via Supabase PostgreSQL`);
     console.log(`🔄 Server restarted with new email config at ${new Date().toLocaleTimeString()}`);
     console.log(`⏱️ Escalation Service Started`);

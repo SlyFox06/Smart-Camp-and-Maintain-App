@@ -1,8 +1,29 @@
 import { Request, Response } from 'express';
 import prisma from '../db/prisma';
 
+// Helper to get scope filter based on user access
+const getAccessScopeFilter = async (userId: string) => {
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { accessScope: true } });
+    const access = user?.accessScope || 'college';
+
+    if (access === 'both') return {};
+    if (access === 'hostel') return { scope: 'hostel' };
+
+    // Default 'college' - show everything except hostel specific
+    // Include nulls to be safe
+    return {
+        OR: [
+            { scope: { not: 'hostel' } },
+            { scope: null }
+        ]
+    };
+};
+
 export const getAdminDashboard = async (req: Request, res: Response) => {
     try {
+        const userId = (req as any).user?.id;
+        const scopeFilter = await getAccessScopeFilter(userId);
+
         // Get counts in parallel
         const [
             totalComplaints,
@@ -14,10 +35,10 @@ export const getAdminDashboard = async (req: Request, res: Response) => {
             students,
             technicians
         ] = await Promise.all([
-            prisma.complaint.count(),
-            prisma.complaint.count({ where: { status: { in: ['reported', 'assigned', 'in_progress'] } } }),
-            prisma.complaint.count({ where: { status: 'resolved' } }),
-            prisma.asset.count(),
+            prisma.complaint.count({ where: scopeFilter }),
+            prisma.complaint.count({ where: { ...scopeFilter, status: { in: ['reported', 'assigned', 'in_progress'] } } }),
+            prisma.complaint.count({ where: { ...scopeFilter, status: 'resolved' } }),
+            prisma.asset.count(), // Assets don't have scope yet, keep global
             prisma.asset.count({ where: { status: { in: ['faulty', 'under_maintenance'] } } }),
             prisma.user.count(),
             prisma.user.count({ where: { role: 'student' } }),
@@ -36,6 +57,7 @@ export const getAdminDashboard = async (req: Request, res: Response) => {
                 technicians
             },
             recentComplaints: await prisma.complaint.findMany({
+                where: scopeFilter,
                 take: 10,
                 orderBy: { createdAt: 'desc' },
                 include: {
@@ -45,6 +67,7 @@ export const getAdminDashboard = async (req: Request, res: Response) => {
             }),
             statusDistribution: await prisma.complaint.groupBy({
                 by: ['status'],
+                where: scopeFilter,
                 _count: true
             })
         };
@@ -58,6 +81,9 @@ export const getAdminDashboard = async (req: Request, res: Response) => {
 
 export const getOverviewStats = async (req: Request, res: Response) => {
     try {
+        const userId = (req as any).user?.id;
+        const scopeFilter = await getAccessScopeFilter(userId);
+
         const [
             totalComplaints,
             activeComplaints,
@@ -69,10 +95,10 @@ export const getOverviewStats = async (req: Request, res: Response) => {
             students,
             technicians
         ] = await Promise.all([
-            prisma.complaint.count(),
-            prisma.complaint.count({ where: { status: { in: ['reported', 'assigned', 'in_progress'] } } }),
-            prisma.complaint.count({ where: { status: 'resolved' } }),
-            prisma.complaint.count({ where: { status: 'closed' } }),
+            prisma.complaint.count({ where: scopeFilter }),
+            prisma.complaint.count({ where: { ...scopeFilter, status: { in: ['reported', 'assigned', 'in_progress'] } } }),
+            prisma.complaint.count({ where: { ...scopeFilter, status: 'resolved' } }),
+            prisma.complaint.count({ where: { ...scopeFilter, status: 'closed' } }),
             prisma.asset.count(),
             prisma.asset.count({ where: { status: { in: ['faulty', 'under_maintenance'] } } }),
             prisma.user.count(),
@@ -100,7 +126,11 @@ export const getOverviewStats = async (req: Request, res: Response) => {
 
 export const getAllComplaints = async (req: Request, res: Response) => {
     try {
+        const userId = (req as any).user?.id;
+        const scopeFilter = await getAccessScopeFilter(userId);
+
         const complaints = await prisma.complaint.findMany({
+            where: scopeFilter,
             include: {
                 student: { select: { id: true, name: true, email: true, department: true, avatar: true } },
                 technician: { select: { id: true, name: true, email: true, avatar: true } },
@@ -267,6 +297,9 @@ export const searchGlobal = async (req: Request, res: Response) => {
 
         if (!query) return res.json({ users: [], complaints: [], assets: [] });
 
+        const userId = (req as any).user?.id;
+        const scopeFilter = await getAccessScopeFilter(userId);
+
         const [users, complaints, assets] = await Promise.all([
             prisma.user.findMany({
                 where: {
@@ -279,9 +312,14 @@ export const searchGlobal = async (req: Request, res: Response) => {
             }),
             prisma.complaint.findMany({
                 where: {
-                    OR: [
-                        { title: { contains: query, mode: 'insensitive' } },
-                        { description: { contains: query, mode: 'insensitive' } }
+                    AND: [
+                        scopeFilter,
+                        {
+                            OR: [
+                                { title: { contains: query, mode: 'insensitive' } },
+                                { description: { contains: query, mode: 'insensitive' } }
+                            ]
+                        }
                     ]
                 },
                 take: 5,
@@ -309,19 +347,49 @@ export const searchComplaints = async (req: Request, res: Response) => {
     try {
         const { q, status, student, technician, asset, scope } = req.query;
         const query = String(q || '');
+        const userId = (req as any).user?.id;
+        const accessScopeFilter = await getAccessScopeFilter(userId);
 
-        const where: any = {};
+        // Initialize with robust AND structure to combine all filters safely
+        const where: any = { AND: [] };
 
-        if (query) {
-            where.OR = [
-                { title: { contains: query, mode: 'insensitive' } },
-                { description: { contains: query, mode: 'insensitive' } },
-                { id: { equals: query } } // Exact match for ID
-            ];
+        // 1. Apply Access Scope Filter (Security)
+        if (Object.keys(accessScopeFilter).length > 0) {
+            where.AND.push(accessScopeFilter);
         }
 
-        if (status) where.status = String(status);
-        if (scope) where.scope = String(scope);
+        // 2. Search Query
+        if (query) {
+            const searchConditions: any[] = [
+                { title: { contains: query, mode: 'insensitive' } },
+                { description: { contains: query, mode: 'insensitive' } }
+            ];
+            const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+            if (uuidRegex.test(query)) {
+                searchConditions.push({ id: { equals: query } });
+            }
+            where.AND.push({ OR: searchConditions });
+        }
+
+        // 3. Field Filters
+        if (status) where.AND.push({ status: String(status) });
+
+        // 4. Scope Filter (Frontend Request)
+        if (scope) {
+            if (scope === 'college') {
+                // "College View" includes college, classroom, and general (null)
+                where.AND.push({
+                    OR: [
+                        { scope: { not: 'hostel' } },
+                        { scope: null }
+                    ]
+                });
+            } else {
+                where.AND.push({ scope: String(scope) });
+            }
+        }
+        // If user selects "hostel" filter explicitly, but they are "college" access, fine—they just won't find anything due to accessScopeFilter AND scope=hostel conflict.
+
         if (student) where.student = { name: { contains: String(student), mode: 'insensitive' } };
         if (technician) where.technician = { name: { contains: String(technician), mode: 'insensitive' } };
         if (asset) where.asset = { name: { contains: String(asset), mode: 'insensitive' } };
@@ -370,11 +438,13 @@ export const getComplaintById = async (req: Request, res: Response) => {
     }
 };
 
-// Placeholder for other admin functions - these can be implemented as needed
 export const getAnalytics = async (req: Request, res: Response) => {
     try {
         const { scope } = req.query;
-        const whereClause: any = {};
+        const userId = (req as any).user?.id;
+        const accessScopeFilter = await getAccessScopeFilter(userId);
+
+        const whereClause: any = { ...accessScopeFilter };
         if (scope) {
             whereClause.scope = String(scope);
         }
@@ -402,7 +472,7 @@ export const getAnalytics = async (req: Request, res: Response) => {
                 where: whereClause,
                 _count: true
             }),
-            prisma.emergency.count(), // Emergencies usually global, or filter by scope if possible/needed? Schema doesn't have scope on emergency easily, but location might. Let's keep it global for now.
+            prisma.emergency.count(), // Keep global for now
             prisma.emergency.count({ where: { status: { in: ['triggered', 'responding'] } } }),
             prisma.emergency.groupBy({
                 by: ['type'],

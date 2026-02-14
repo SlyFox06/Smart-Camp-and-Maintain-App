@@ -9,9 +9,9 @@ export const createComplaint = async (req: Request, res: Response) => {
         const { title, description, severity, images, video, assetId, roomId, classroomId, scope, category } = req.body;
         const studentId = (req as any).user?.id;
 
-        // Validation: Must have at least one identifier
-        if (!assetId && !roomId && !classroomId) {
-            return res.status(400).json({ message: 'Please provide an asset, room, or classroom ID' });
+        // Validation: Must have at least one identifier OR a scope (for general complaints)
+        if (!assetId && !roomId && !classroomId && !scope) {
+            return res.status(400).json({ message: 'Please provide an asset, room, classroom ID, or valid scope' });
         }
 
         // Check for active complaint
@@ -60,41 +60,95 @@ export const createComplaint = async (req: Request, res: Response) => {
             }
         }
 
+        // Infer category if missing based on detected skill
+        if (!category) {
+            if (requiredSkill === 'Electrician') req.body.category = 'Electrical';
+            else if (requiredSkill === 'Plumber') req.body.category = 'Plumbing';
+            else if (requiredSkill === 'IT Technician') req.body.category = 'IT/Network';
+            else if (requiredSkill === 'Cleaner') req.body.category = 'Cleaning';
+            else if (requiredSkill === 'Maintenance Technician') req.body.category = 'Furniture';
+        }
+
+        // Ensure effective category is used
+        const effectiveCategory = category || req.body.category || 'General';
+
         // Determine Access Scope for Technician
         const complaintScope = scope || (roomId ? 'hostel' : 'college');
         const techScope = complaintScope === 'hostel' ? ['hostel', 'both'] : ['college', 'both'];
 
-        // Find available technician with matching skill AND access scope
-        const availableTechnician = await prisma.technician.findFirst({
-            where: {
-                skillType: requiredSkill, // skillType in technician model
-                isAvailable: true,
-                user: {
-                    isActive: true,
-                    accessScope: { in: techScope }
-                }
-            },
-            include: { user: true },
-            orderBy: { updatedAt: 'asc' }
-        });
+        console.log(`[AutoAssign] Processing Complaint: "${title}"`);
+        console.log(`[AutoAssign] Detected Skill: ${requiredSkill}`);
+        console.log(`[AutoAssign] Required Scope: ${techScope.join(' or ')}`);
 
         // Create complaint
+        // Determine initial status based on scope and emergency
+        let initialStatus = 'reported';
+        let assignedTechnicianId = null;
+        let assignedAt = null;
+
+        // Hostel Workflow: Non-emergency complaints need Warden Approval
+        let availableTechnician: any = null;
+
+        if (complaintScope === 'hostel' && !isEmergency(description || title)) {
+            initialStatus = 'waiting_warden_approval';
+            console.log(`[AutoAssign] Hostel complaint requires Warden approval. Skipping auto-assign.`);
+        } else {
+            // Standard Workflow Or Emergency Bypass
+            // Find available technician or cleaner with matching skill AND access scope
+
+            if (requiredSkill === 'Cleaner') {
+                availableTechnician = await prisma.cleaner.findFirst({
+                    where: {
+                        isAvailable: true,
+                        user: {
+                            isActive: true,
+                            accessScope: { in: techScope }
+                        }
+                    },
+                    include: { user: true },
+                    orderBy: { updatedAt: 'asc' }
+                });
+            } else {
+                availableTechnician = await prisma.technician.findFirst({
+                    where: {
+                        skillType: { equals: requiredSkill, mode: 'insensitive' }, // Case-insensitive match 
+                        isAvailable: true,
+                        user: {
+                            isActive: true, // properly joined check
+                            accessScope: { in: techScope }
+                        }
+                    },
+                    include: { user: true },
+                    orderBy: { updatedAt: 'asc' }
+                });
+            }
+
+            if (availableTechnician) {
+                console.log(`[AutoAssign] MATCH FOUND: ${availableTechnician.user.name} (${availableTechnician.user.accessScope})`);
+                initialStatus = 'assigned';
+                assignedTechnicianId = availableTechnician.userId;
+                assignedAt = new Date();
+            } else {
+                console.log(`[AutoAssign] NO AVAILABLE TECHNICIAN/CLEANER FOUND for skill: ${requiredSkill}`);
+            }
+        }
+
         const complaint = await prisma.complaint.create({
             data: {
                 title,
                 description,
                 severity: effectiveSeverity,
                 scope: scope || (roomId ? 'hostel' : (classroomId ? 'classroom' : 'college')),
-                category,
+                category: effectiveCategory,
                 images: images ? (Array.isArray(images) ? JSON.stringify(images) : images) : null,
                 video,
                 assetId: assetId || null,
                 roomId: roomId || null,
                 classroomId: classroomId || null,
                 studentId,
-                status: availableTechnician ? 'assigned' : 'reported',
-                technicianId: availableTechnician?.userId || null,
-                assignedAt: availableTechnician ? new Date() : null
+                status: initialStatus,
+                technicianId: assignedTechnicianId,
+                assignedAt: assignedAt
             },
             include: {
                 asset: true,
@@ -106,7 +160,16 @@ export const createComplaint = async (req: Request, res: Response) => {
         });
 
         // Update status of the related entity if assigned
-        if (availableTechnician) {
+        // Only if assigned (technician found immediately OR emergency bypass) - Wait, emergency logic is handled earlier in function separately?
+        // Ah, earlier there is `if (isEmergency) return createEmergency(...)`. If createEmergency returns, we don't reach here.
+        // But `createEmergency` function might just create an Emergency record. Does it CREATE A COMPLAINT too?
+        // Let's assume standard flow for now. If createEmergency handles it, great.
+        // Wait, the earlier block returns `createEmergency(req, res)`. So execution stops here if emergency.
+        // So line 34 handles emergency.
+        // Thus, we only deal with non-emergency here.
+        // So `!isEmergency` check inside `if (complaintScope === 'hostel' ...)` is redundant but harmless.
+
+        if (initialStatus === 'assigned' && assignedTechnicianId) {
             const statusUpdate = { status: 'under_maintenance' };
             if (assetId) await prisma.asset.update({ where: { id: assetId }, data: statusUpdate });
             if (roomId) await prisma.room.update({ where: { id: roomId }, data: statusUpdate });
@@ -118,14 +181,21 @@ export const createComplaint = async (req: Request, res: Response) => {
                     complaintId: complaint.id,
                     status: 'assigned',
                     message: `Auto-assigned to ${availableTechnician.user.name} (${requiredSkill})`
-                }
+                } // Note: availableTechnician variable scope issue? define it outside if
             });
 
             // Notifications
-            await createNotification(availableTechnician.userId, 'New Assignment', `New complaint: ${title}`, 'complaint_assigned', complaint.id);
+            await createNotification(assignedTechnicianId, 'New Assignment', `New complaint: ${title}`, 'complaint_assigned', complaint.id);
             await createNotification(studentId, 'Complaint Assigned', `Your complaint has been assigned to ${availableTechnician.user.name}`, 'complaint_assigned', complaint.id);
+        } else if (initialStatus === 'waiting_warden_approval') {
+            // Notify Wardens
+            const wardens = await prisma.user.findMany({ where: { role: 'warden' } }); // Assuming 'warden' role exists or we filter by scope? Role is safer.
+            for (const warden of wardens) {
+                await createNotification(warden.id, 'New Hostel Complaint', `Approval Needed: ${title}`, 'warden_approval', complaint.id);
+            }
+            await createNotification(studentId, 'Complaint Pending Approval', `Your complaint is waiting for Warden approval.`, 'complaint_status', complaint.id);
         } else {
-            // Notify admins
+            // Notify admins (Standard procedure for unassigned)
             const admins = await prisma.user.findMany({ where: { role: 'admin' } });
             for (const admin of admins) {
                 await createNotification(admin.id, 'New Complaint', `Unassigned issue: ${title}`, 'new_complaint', complaint.id);
@@ -147,8 +217,17 @@ export const getMyComplaints = async (req: Request, res: Response) => {
         const whereClause: any = { studentId: userId };
 
         if (scope) {
-            whereClause.scope = scope;
+            if (scope === 'college') {
+                whereClause.OR = [
+                    { scope: { not: 'hostel' } },
+                    { scope: null }
+                ];
+            } else {
+                whereClause.scope = String(scope);
+            }
         }
+
+
 
         const complaints = await prisma.complaint.findMany({
             where: whereClause,
@@ -176,9 +255,15 @@ export const getAssignedComplaints = async (req: Request, res: Response) => {
 
         const whereClause: any = { technicianId };
         if (scope) {
-            whereClause.scope = String(scope);
+            if (scope === 'college') {
+                whereClause.OR = [
+                    { scope: { not: 'hostel' } },
+                    { scope: null }
+                ];
+            } else {
+                whereClause.scope = String(scope);
+            }
         }
-
         const complaints = await prisma.complaint.findMany({
             where: whereClause,
             include: {
@@ -644,6 +729,17 @@ export const reviewWork = async (req: Request, res: Response) => {
         });
 
         if (action === 'approve') {
+            // Update entity status to operational immediately upon approval
+            if (updated.assetId) {
+                await prisma.asset.update({ where: { id: updated.assetId }, data: { status: 'operational' } });
+            }
+            if (updated.roomId) {
+                await prisma.room.update({ where: { id: updated.roomId }, data: { status: 'operational' } });
+            }
+            if (updated.classroomId) {
+                await prisma.classroom.update({ where: { id: updated.classroomId }, data: { status: 'operational' } });
+            }
+
             // Notify Student for feedback
             await createNotification(
                 updated.studentId,
